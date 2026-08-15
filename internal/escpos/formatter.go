@@ -20,6 +20,8 @@ type PrintOrderRequest struct {
 	BusinessName         string          `json:"business_name,omitempty"`
 	LogoUrl              string          `json:"logo_url,omitempty"`
 	ShowLogo             bool            `json:"show_logo"`
+	LogoMaxWidth         int             `json:"logo_max_width,omitempty"`
+	FontScalePercent     int             `json:"font_scale_percent,omitempty"`
 	NIT                  string          `json:"nit,omitempty"`
 	Address              string          `json:"address,omitempty"`
 	Phone                string          `json:"phone,omitempty"`
@@ -69,7 +71,11 @@ func FormatOrderTicket(req *PrintOrderRequest) []byte {
 
 	// 0. LOGO DE LA EMPRESA (Si está activado)
 	if req.ShowLogo && req.LogoUrl != "" {
-		if logoBytes, err := DownloadAndRasterizeLogo(req.LogoUrl, paperWidth); err == nil && len(logoBytes) > 0 {
+		maxWidthPct := req.LogoMaxWidth
+		if maxWidthPct <= 0 {
+			maxWidthPct = 25
+		}
+		if logoBytes, err := DownloadAndRasterizeLogo(req.LogoUrl, paperWidth, maxWidthPct); err == nil && len(logoBytes) > 0 {
 			b.PrintRasterImage(logoBytes)
 			b.FeedLines(1)
 		}

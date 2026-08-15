@@ -3,6 +3,7 @@ package escpos
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
@@ -22,13 +23,17 @@ var (
 	}
 )
 
-// DownloadAndRasterizeLogo descarga la imagen del logo y la convierte en mapa de bits ESC/POS (GS v 0) con caché en memoria
-func DownloadAndRasterizeLogo(logoURL string, paperWidth string) ([]byte, error) {
+// DownloadAndRasterizeLogo descarga la imagen del logo y la convierte en mapa de bits ESC/POS (GS v 0) con tamaño proporcional y caché
+func DownloadAndRasterizeLogo(logoURL string, paperWidth string, logoMaxWidthPercent int) ([]byte, error) {
 	if logoURL == "" {
 		return nil, nil
 	}
 
-	cacheKey := paperWidth + ":" + logoURL
+	if logoMaxWidthPercent <= 0 {
+		logoMaxWidthPercent = 25
+	}
+
+	cacheKey := fmt.Sprintf("%s:%d:%s", paperWidth, logoMaxWidthPercent, logoURL)
 	if cached, ok := logoCache.Load(cacheKey); ok {
 		if data, ok := cached.([]byte); ok && len(data) > 0 {
 			return data, nil
@@ -60,10 +65,19 @@ func DownloadAndRasterizeLogo(logoURL string, paperWidth string) ([]byte, error)
 		return nil, err
 	}
 
-	// Ancho máximo en puntos: 384 para 80mm, 256 para 58mm
-	maxDots := 384
+	// Base total dots: 384 para 80mm, 256 para 58mm
+	baseDots := 384
 	if paperWidth == "58mm" {
-		maxDots = 256
+		baseDots = 256
+	}
+
+	// Calcular ancho proporcional según el porcentaje de Mongo (ej: 25% de 384 = 96 dots)
+	maxDots := int(float64(baseDots) * (float64(logoMaxWidthPercent) / 100.0))
+	if maxDots < 48 {
+		maxDots = 48
+	}
+	if maxDots > baseDots {
+		maxDots = baseDots
 	}
 
 	rasterBytes := ImageToEscposRaster(img, maxDots)
