@@ -87,9 +87,10 @@ func (s *Server) HandlePrintOrder(w http.ResponseWriter, r *http.Request) {
 		req.OpenDrawer = true
 	}
 
-	copies := req.Copies
+	// El número de copias se controla directamente desde la configuración de la aplicación local
+	copies := cfg.DefaultCopies
 	if copies < 1 {
-		copies = cfg.DefaultCopies
+		copies = req.Copies
 	}
 	if copies < 1 {
 		copies = 1
@@ -244,9 +245,10 @@ func (s *Server) HandleTestPrint(w http.ResponseWriter, r *http.Request) {
 		printer = cfg.DefaultPrinter
 	}
 
-	copies := req.Copies
+	// El número de copias se controla directamente desde la configuración de la aplicación local
+	copies := cfg.DefaultCopies
 	if copies < 1 {
-		copies = cfg.DefaultCopies
+		copies = req.Copies
 	}
 	if copies < 1 {
 		copies = 1
