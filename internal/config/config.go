@@ -107,5 +107,9 @@ func saveConfigUnlocked(cfg *Config, path string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	_ = os.WriteFile(path, data, 0644)
+	if path != configFile {
+		_ = os.WriteFile(configFile, data, 0644)
+	}
+	return nil
 }

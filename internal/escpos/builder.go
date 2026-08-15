@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 )
 
 type Builder struct {
@@ -11,9 +12,21 @@ type Builder struct {
 	lineWidth int // 32 for 58mm, 48 for 80mm
 }
 
+func cleanAscii(s string) string {
+	replacer := strings.NewReplacer(
+		"á", "a", "é", "e", "í", "i", "ó", "o", "ú", "u",
+		"Á", "A", "É", "E", "Í", "I", "Ó", "O", "Ú", "U",
+		"ñ", "n", "Ñ", "N",
+		"ü", "u", "Ü", "U",
+		"¡", "", "¿", "",
+		"–", "-", "—", "-", "’", "'", "”", "\"", "“", "\"",
+	)
+	return replacer.Replace(s)
+}
+
 func NewBuilder(paperWidth string) *Builder {
 	width := 48
-	if paperWidth == "58mm" {
+	if strings.EqualFold(strings.TrimSpace(paperWidth), "58mm") {
 		width = 32
 	}
 	b := &Builder{lineWidth: width}
@@ -75,7 +88,8 @@ func (b *Builder) SetSmallFont(enable bool) *Builder {
 }
 
 func (b *Builder) PrintLine(text string) *Builder {
-	b.buf.WriteString(text)
+	cleaned := cleanAscii(text)
+	b.buf.WriteString(cleaned)
 	b.buf.Write(CmdLineFeed)
 	return b
 }
@@ -97,34 +111,58 @@ func (b *Builder) PrintDivider(char string) *Builder {
 	return b
 }
 
-// PrintRow2Cols imprime 2 columnas justificadas a los extremos (ej: "Total" a la izquierda, "$25.000" a la derecha)
+// PrintRow2Cols imprime 2 columnas justificadas a los extremos (ej: "Total" a la izquierda, "$ 25.000" a la derecha)
 func (b *Builder) PrintRow2Cols(left, right string) *Builder {
+	leftClean := cleanAscii(left)
+	rightClean := cleanAscii(right)
+
+	leftLen := utf8.RuneCountInString(leftClean)
+	rightLen := utf8.RuneCountInString(rightClean)
 	totalWidth := b.lineWidth
-	spaceCount := totalWidth - len(left) - len(right)
+
+	spaceCount := totalWidth - leftLen - rightLen
 	if spaceCount < 1 {
-		spaceCount = 1
+		maxLeft := totalWidth - rightLen - 1
+		if maxLeft > 3 {
+			runes := []rune(leftClean)
+			if len(runes) > maxLeft {
+				leftClean = string(runes[:maxLeft])
+				leftLen = maxLeft
+			}
+		}
+		spaceCount = totalWidth - leftLen - rightLen
+		if spaceCount < 1 {
+			spaceCount = 1
+		}
 	}
-	line := left + strings.Repeat(" ", spaceCount) + right
+
+	line := leftClean + strings.Repeat(" ", spaceCount) + rightClean
 	b.buf.WriteString(line)
 	b.buf.Write(CmdLineFeed)
 	return b
 }
 
-// PrintItemRow imprime producto con cantidad, nombre y precio
+// PrintItemRow imprime producto con cantidad, nombre y precio ajustado al ancho de papel
 func (b *Builder) PrintItemRow(qty int, name string, priceStr string) *Builder {
 	qtyStr := fmt.Sprintf("%dx ", qty)
-	maxNameWidth := b.lineWidth - len(qtyStr) - len(priceStr) - 1
-	if maxNameWidth < 5 {
-		maxNameWidth = 5
+	nameClean := cleanAscii(name)
+	priceClean := cleanAscii(priceStr)
+
+	qtyLen := utf8.RuneCountInString(qtyStr)
+	priceLen := utf8.RuneCountInString(priceClean)
+
+	maxNameLen := b.lineWidth - qtyLen - priceLen - 1
+	if maxNameLen < 4 {
+		maxNameLen = 4
 	}
 
-	displayName := name
-	if len(displayName) > maxNameWidth {
-		displayName = displayName[:maxNameWidth]
+	nameRunes := []rune(nameClean)
+	if len(nameRunes) > maxNameLen {
+		nameClean = string(nameRunes[:maxNameLen])
 	}
 
-	left := qtyStr + displayName
-	b.PrintRow2Cols(left, priceStr)
+	left := qtyStr + nameClean
+	b.PrintRow2Cols(left, priceClean)
 	return b
 }
 

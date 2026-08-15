@@ -74,24 +74,28 @@ func (s *Server) HandlePrintOrder(w http.ResponseWriter, r *http.Request) {
 
 	cfg := config.GetConfig()
 
-	if req.PrinterName == "" || req.PrinterName == "Predefinida" {
+	// 1. La impresora se define por la app local si fue seleccionada
+	if cfg.DefaultPrinter != "" && cfg.DefaultPrinter != "Predefinida" {
+		req.PrinterName = cfg.DefaultPrinter
+	} else if req.PrinterName == "" || req.PrinterName == "Predefinida" {
 		req.PrinterName = cfg.DefaultPrinter
 	}
-	if req.PaperWidth == "" {
+
+	// 2. El ancho de papel físico siempre lo impone la configuración local de la máquina
+	if cfg.PaperWidth != "" {
 		req.PaperWidth = cfg.PaperWidth
+	} else if req.PaperWidth == "" {
+		req.PaperWidth = "80mm"
 	}
-	if !req.CutPaper && cfg.AutoCut {
-		req.CutPaper = true
-	}
-	if !req.OpenDrawer && cfg.OpenDrawer && req.CashAmount > 0 {
+
+	// 3. Corte y apertura de gaveta
+	req.CutPaper = cfg.AutoCut
+	if cfg.OpenDrawer && (req.CashAmount > 0 || req.SaleType == "COUNTER_SALE" || req.OpenDrawer) {
 		req.OpenDrawer = true
 	}
 
-	// El número de copias se controla directamente desde la configuración de la aplicación local
+	// 4. Copias físicas controladas por la aplicación local
 	copies := cfg.DefaultCopies
-	if copies < 1 {
-		copies = req.Copies
-	}
 	if copies < 1 {
 		copies = 1
 	}
@@ -240,16 +244,16 @@ func (s *Server) HandleTestPrint(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewDecoder(r.Body).Decode(&req)
 
 	cfg := config.GetConfig()
-	printer := req.PrinterName
+	printer := cfg.DefaultPrinter
 	if printer == "" || printer == "Predefinida" {
-		printer = cfg.DefaultPrinter
+		if req.PrinterName != "" && req.PrinterName != "Predefinida" {
+			printer = req.PrinterName
+		} else {
+			printer = cfg.DefaultPrinter
+		}
 	}
 
-	// El número de copias se controla directamente desde la configuración de la aplicación local
 	copies := cfg.DefaultCopies
-	if copies < 1 {
-		copies = req.Copies
-	}
 	if copies < 1 {
 		copies = 1
 	}
@@ -257,7 +261,12 @@ func (s *Server) HandleTestPrint(w http.ResponseWriter, r *http.Request) {
 		copies = 5
 	}
 
-	payload := escpos.FormatTestTicket(cfg.PaperWidth)
+	paperWidth := cfg.PaperWidth
+	if paperWidth == "" {
+		paperWidth = "80mm"
+	}
+
+	payload := escpos.FormatTestTicket(paperWidth)
 	var lastErr error
 	for i := 0; i < copies; i++ {
 		err := hardware.PrintRawToPrinter(printer, payload)
