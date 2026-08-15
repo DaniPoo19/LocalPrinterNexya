@@ -94,6 +94,9 @@ func (s *Server) HandlePrintOrder(w http.ResponseWriter, r *http.Request) {
 	if copies < 1 {
 		copies = 1
 	}
+	if copies > 10 {
+		copies = 10
+	}
 
 	payload := escpos.FormatOrderTicket(&req)
 
@@ -247,6 +250,9 @@ func (s *Server) HandleTestPrint(w http.ResponseWriter, r *http.Request) {
 	}
 	if copies < 1 {
 		copies = 1
+	}
+	if copies > 5 {
+		copies = 5
 	}
 
 	payload := escpos.FormatTestTicket(cfg.PaperWidth)
