@@ -18,6 +18,8 @@ type PrintOrderRequest struct {
 	PrinterName          string          `json:"printer_name,omitempty"`
 	PaperWidth           string          `json:"paper_width,omitempty"` // "58mm" or "80mm"
 	BusinessName         string          `json:"business_name,omitempty"`
+	LogoUrl              string          `json:"logo_url,omitempty"`
+	ShowLogo             bool            `json:"show_logo"`
 	NIT                  string          `json:"nit,omitempty"`
 	Address              string          `json:"address,omitempty"`
 	Phone                string          `json:"phone,omitempty"`
@@ -63,6 +65,14 @@ func FormatOrderTicket(req *PrintOrderRequest) []byte {
 
 	if req.OpenDrawer {
 		b.OpenDrawer()
+	}
+
+	// 0. LOGO DE LA EMPRESA (Si está activado)
+	if req.ShowLogo && req.LogoUrl != "" {
+		if logoBytes, err := DownloadAndRasterizeLogo(req.LogoUrl, paperWidth); err == nil && len(logoBytes) > 0 {
+			b.PrintRasterImage(logoBytes)
+			b.FeedLines(1)
+		}
 	}
 
 	// 1. ENCABEZADO EMPRESA

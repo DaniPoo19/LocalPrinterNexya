@@ -187,6 +187,20 @@ func (b *Builder) Cut(partial bool) *Builder {
 	return b
 }
 
+func (b *Builder) PrintRasterImage(data []byte) *Builder {
+	if len(data) > 0 {
+		b.buf.Write(data)
+	}
+	return b
+}
+
+func (b *Builder) PrintRawBytes(data []byte) *Builder {
+	if len(data) > 0 {
+		b.buf.Write(data)
+	}
+	return b
+}
+
 func (b *Builder) Bytes() []byte {
 	return b.buf.Bytes()
 }
