@@ -15,34 +15,38 @@ type TicketProduct struct {
 }
 
 type PrintOrderRequest struct {
-	PrinterName    string          `json:"printer_name,omitempty"`
-	PaperWidth     string          `json:"paper_width,omitempty"` // "58mm" or "80mm"
-	BusinessName   string          `json:"business_name,omitempty"`
-	NIT            string          `json:"nit,omitempty"`
-	Address        string          `json:"address,omitempty"`
-	Phone          string          `json:"phone,omitempty"`
-	OrderCode      string          `json:"order_code"`
-	DailyCode      string          `json:"daily_code,omitempty"`
-	CreatedAt      string          `json:"created_at,omitempty"`
-	SaleType       string          `json:"sale_type,omitempty"` // "ON_SITE", "DELIVERY", "PICKUP"
-	WaiterName     string          `json:"waiter_name,omitempty"`
-	CustomerName   string          `json:"customer_name,omitempty"`
-	CustomerPhone  string          `json:"customer_phone,omitempty"`
-	DeliveryAddress string         `json:"delivery_address,omitempty"`
-	Products       []TicketProduct `json:"products"`
-	Subtotal       float64         `json:"subtotal"`
-	DeliveryCost   float64         `json:"delivery_cost,omitempty"`
-	Discount       float64         `json:"discount,omitempty"`
-	Total          float64         `json:"total"`
-	PaymentType    string          `json:"payment_type,omitempty"`
-	CashAmount     float64         `json:"cash_amount,omitempty"`
-	TransferAmount float64         `json:"transfer_amount,omitempty"`
-	ChangeAmount   float64         `json:"change_amount,omitempty"`
-	FooterMessage  string          `json:"footer_message,omitempty"`
-	OpenDrawer     bool            `json:"open_drawer"`
-	CutPaper       bool            `json:"cut_paper"`
-	Beep           bool            `json:"beep"`
-	Copies         int             `json:"copies,omitempty"`
+	PrinterName          string          `json:"printer_name,omitempty"`
+	PaperWidth           string          `json:"paper_width,omitempty"` // "58mm" or "80mm"
+	BusinessName         string          `json:"business_name,omitempty"`
+	NIT                  string          `json:"nit,omitempty"`
+	Address              string          `json:"address,omitempty"`
+	Phone                string          `json:"phone,omitempty"`
+	OrderCode            string          `json:"order_code"`
+	DailyCode            string          `json:"daily_code,omitempty"`
+	CreatedAt            string          `json:"created_at,omitempty"`
+	SaleType             string          `json:"sale_type,omitempty"` // "ON_SITE", "DELIVERY", "PICKUP", "COUNTER_SALE"
+	TableNumber          string          `json:"table_number,omitempty"`
+	WaiterName           string          `json:"waiter_name,omitempty"`
+	CustomerName         string          `json:"customer_name,omitempty"`
+	CustomerDoc          string          `json:"customer_doc,omitempty"`
+	CustomerDocType      string          `json:"customer_doc_type,omitempty"`
+	CustomerPhone        string          `json:"customer_phone,omitempty"`
+	DeliveryAddress      string          `json:"delivery_address,omitempty"`
+	Products             []TicketProduct `json:"products"`
+	Subtotal             float64         `json:"subtotal"`
+	DeliveryCost         float64         `json:"delivery_cost,omitempty"`
+	Discount             float64         `json:"discount,omitempty"`
+	Total                float64         `json:"total"`
+	PaymentType          string          `json:"payment_type,omitempty"`
+	CashAmount           float64         `json:"cash_amount,omitempty"`
+	TransferAmount       float64         `json:"transfer_amount,omitempty"`
+	CashBillDenomination float64         `json:"cash_bill_denomination,omitempty"`
+	ChangeAmount         float64         `json:"change_amount,omitempty"`
+	FooterMessage        string          `json:"footer_message,omitempty"`
+	OpenDrawer           bool            `json:"open_drawer"`
+	CutPaper             bool            `json:"cut_paper"`
+	Beep                 bool            `json:"beep"`
+	Copies               int             `json:"copies,omitempty"`
 }
 
 func FormatOrderTicket(req *PrintOrderRequest) []byte {
@@ -79,7 +83,7 @@ func FormatOrderTicket(req *PrintOrderRequest) []byte {
 		b.PrintLine(fmt.Sprintf("Tel: %s", req.Phone))
 	}
 
-	b.PrintDivider("=")
+	b.PrintDivider("-")
 
 	// 2. DETALLES DEL PEDIDO
 	b.SetAlign("center")
@@ -88,7 +92,7 @@ func FormatOrderTicket(req *PrintOrderRequest) []byte {
 	if req.DailyCode != "" {
 		displayCode = req.DailyCode
 	}
-	b.PrintLine(fmt.Sprintf("PEDIDO #%s", displayCode))
+	b.PrintLine(fmt.Sprintf("Pedido #%s", displayCode))
 	b.SetBold(false).SetDoubleSize(false)
 
 	b.SetAlign("left")
@@ -100,35 +104,53 @@ func FormatOrderTicket(req *PrintOrderRequest) []byte {
 
 	saleTypeLabel := "En Local"
 	if strings.EqualFold(req.SaleType, "DELIVERY") {
-		saleTypeLabel = "DOMICILIO"
+		saleTypeLabel = "Domicilio"
 	} else if strings.EqualFold(req.SaleType, "PICKUP") {
-		saleTypeLabel = "PARA RECOGER"
+		saleTypeLabel = "Para Recoger"
+	} else if strings.EqualFold(req.SaleType, "COUNTER_SALE") {
+		saleTypeLabel = "Venta Mostrador"
 	}
 	b.PrintRow2Cols("Tipo:", saleTypeLabel)
+
+	if req.PaymentType != "" {
+		b.PrintRow2Cols("Pago:", formatPaymentTypeName(req.PaymentType))
+	}
+
+	if req.TableNumber != "" && req.TableNumber != "0" {
+		b.SetBold(true)
+		b.PrintRow2Cols("Mesa:", req.TableNumber)
+		b.SetBold(false)
+	}
 
 	if req.WaiterName != "" {
 		b.PrintRow2Cols("Atendido por:", req.WaiterName)
 	}
 
-	// Datos del cliente
+	// 3. DATOS DEL CLIENTE
 	if req.CustomerName != "" {
 		b.PrintDivider("-")
-		b.SetBold(true).PrintLine("CLIENTE:")
+		b.SetBold(true).PrintLine(fmt.Sprintf("CLIENTE: %s", req.CustomerName))
 		b.SetBold(false)
-		b.PrintLine(fmt.Sprintf(" Nombre: %s", req.CustomerName))
+		if req.CustomerDoc != "" {
+			docType := req.CustomerDocType
+			if docType == "" {
+				docType = "CC"
+			}
+			b.PrintLine(fmt.Sprintf(" Doc: %s %s", docType, req.CustomerDoc))
+		}
 		if req.CustomerPhone != "" {
-			b.PrintLine(fmt.Sprintf(" Tel:    %s", req.CustomerPhone))
+			b.PrintLine(fmt.Sprintf(" Tel: %s", req.CustomerPhone))
 		}
 		if req.DeliveryAddress != "" {
-			b.PrintLine(fmt.Sprintf(" Dir:    %s", req.DeliveryAddress))
+			b.PrintLine(fmt.Sprintf(" Dir: %s", req.DeliveryAddress))
 		}
 	}
 
-	b.PrintDivider("=")
+	b.PrintDivider("-")
 
-	// 3. PRODUCTOS
+	// 4. PRODUCTOS
 	b.SetBold(true)
-	b.PrintRow2Cols("CANT. PRODUCTO", "VALOR")
+	b.PrintLine("PRODUCTOS")
 	b.SetBold(false)
 	b.PrintDivider("-")
 
@@ -136,10 +158,10 @@ func FormatOrderTicket(req *PrintOrderRequest) []byte {
 		priceStr := formatCurrency(p.Price * float64(p.Quantity))
 		b.PrintItemRow(p.Quantity, p.Name, priceStr)
 
-		// Personalizaciones / Sabores
+		// Personalizaciones / Sabores / Adiciones con precio
 		for _, cust := range p.Customizations {
 			b.SetSmallFont(true)
-			b.PrintLine(fmt.Sprintf("  + %s", cust))
+			b.PrintLine(fmt.Sprintf("  %s", cust))
 			b.SetSmallFont(false)
 		}
 
@@ -153,7 +175,7 @@ func FormatOrderTicket(req *PrintOrderRequest) []byte {
 
 	b.PrintDivider("-")
 
-	// 4. TOTALES
+	// 5. TOTALES
 	if req.Subtotal > 0 && (req.DeliveryCost > 0 || req.Discount > 0) {
 		b.PrintRow2Cols("Subtotal:", formatCurrency(req.Subtotal))
 	}
@@ -168,24 +190,42 @@ func FormatOrderTicket(req *PrintOrderRequest) []byte {
 	b.PrintRow2Cols("TOTAL:", formatCurrency(req.Total))
 	b.SetBold(false).SetDoubleHeight(false)
 
-	// 5. DETALLES DE PAGO
-	if req.PaymentType != "" {
+	// 6. DETALLES DE PAGO Y VUELTO (COBRAR EN EFECTIVO)
+	hasPaymentBreakdown := req.CashAmount > 0 || req.TransferAmount > 0 || req.CashBillDenomination > 0 || req.ChangeAmount > 0
+	if hasPaymentBreakdown {
 		b.PrintDivider("-")
-		b.PrintRow2Cols("Metodo de Pago:", req.PaymentType)
-		if req.CashAmount > 0 {
-			b.PrintRow2Cols("Efectivo:", formatCurrency(req.CashAmount))
-		}
+		b.SetBold(true).PrintLine("DETALLE DEL PAGO")
+		b.SetBold(false)
+
 		if req.TransferAmount > 0 {
 			b.PrintRow2Cols("Transferencia:", formatCurrency(req.TransferAmount))
 		}
-		if req.ChangeAmount > 0 {
-			b.PrintRow2Cols("Cambio:", formatCurrency(req.ChangeAmount))
+		if req.CashAmount > 0 && req.TransferAmount > 0 {
+			b.PrintRow2Cols("Efectivo:", formatCurrency(req.CashAmount))
+		}
+
+		if req.CashBillDenomination > 0 || req.ChangeAmount > 0 {
+			b.PrintDivider("-")
+			b.SetAlign("center")
+			b.SetBold(true).PrintLine("COBRAR EN EFECTIVO")
+			b.SetBold(false).SetAlign("left")
+			if req.CashBillDenomination > 0 {
+				b.PrintRow2Cols("Paga con:", formatCurrency(req.CashBillDenomination))
+			}
+			if req.ChangeAmount > 0 {
+				b.SetBold(true)
+				b.PrintRow2Cols("VUELTO A DAR:", formatCurrency(req.ChangeAmount))
+				b.SetBold(false)
+			}
 		}
 	}
 
-	// 6. PIE DE PÁGINA
-	b.PrintDivider("=")
+	// 7. PIE DE PÁGINA
+	b.PrintDivider("-")
 	b.SetAlign("center")
+	b.SetBold(true).PrintLine("No valido como factura de venta")
+	b.SetBold(false)
+
 	footer := req.FooterMessage
 	if footer == "" {
 		footer = "¡Gracias por su compra!\nVuelva pronto"
@@ -196,7 +236,7 @@ func FormatOrderTicket(req *PrintOrderRequest) []byte {
 		}
 	}
 
-	// 7. CORTE
+	// 8. CORTE
 	if req.CutPaper {
 		b.Cut(true)
 	} else {
@@ -226,13 +266,14 @@ func FormatTestTicket(paperWidth string) []byte {
 	b.PrintLine("Hardware Spooler: Operativo")
 	b.PrintLine("Corte de papel: Activo")
 	b.PrintDivider("=")
+	b.SetBold(true).PrintLine("No valido como factura de venta")
+	b.SetBold(false)
 	b.PrintLine("Sistema Listo para Operar")
 	b.Cut(true)
 	return b.Bytes()
 }
 
 func formatCurrency(val float64) string {
-	// Formatear como moneda colombiana (ej: $ 25.000)
 	intVal := int64(val)
 	str := fmt.Sprintf("%d", intVal)
 	var parts []string
@@ -244,4 +285,23 @@ func formatCurrency(val float64) string {
 		parts = append([]string{str}, parts...)
 	}
 	return fmt.Sprintf("$ %s", strings.Join(parts, "."))
+}
+
+func formatPaymentTypeName(pt string) string {
+	switch strings.ToUpper(strings.TrimSpace(pt)) {
+	case "CASH", "EFECTIVO":
+		return "Efectivo"
+	case "TRANSFER", "TRANSFERENCIA":
+		return "Transferencia Bancaria"
+	case "HYBRID", "HIBRIDO", "HÍBRIDO":
+		return "Híbrido (Transf. + Efectivo)"
+	case "CARD", "TARJETA", "DATAFONO":
+		return "Datáfono / Tarjeta"
+	case "CREDIT", "CREDITO", "CRÉDITO":
+		return "Crédito"
+	case "PENDING", "PENDIENTE":
+		return "Pendiente"
+	default:
+		return pt
+	}
 }
