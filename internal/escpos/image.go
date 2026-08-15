@@ -88,7 +88,7 @@ func DownloadAndRasterizeLogo(logoURL string, paperWidth string, logoMaxWidthPer
 	return rasterBytes, nil
 }
 
-// ImageToEscposRaster convierte un image.Image en comando ESC/POS GS v 0 0
+// ImageToEscposRaster convierte un image.Image en comando ESC/POS GS v 0 0 usando tramado Floyd-Steinberg para máxima fidelidad
 func ImageToEscposRaster(src image.Image, maxWidth int) []byte {
 	bounds := src.Bounds()
 	origW := bounds.Dx()
@@ -110,6 +110,54 @@ func ImageToEscposRaster(src image.Image, maxWidth int) []byte {
 	widthInBytes := (targetW + 7) / 8
 	targetW = widthInBytes * 8
 
+	// Crear matriz de luminancia 2D en escala de grises [0.0 - 255.0]
+	grayMatrix := make([][]float64, targetH)
+	for y := 0; y < targetH; y++ {
+		grayMatrix[y] = make([]float64, targetW)
+		srcY := bounds.Min.Y + (y * origH / targetH)
+		for x := 0; x < targetW; x++ {
+			srcX := bounds.Min.X + (x * origW / targetW)
+			r, g, bl, a := src.At(srcX, srcY).RGBA()
+
+			// Si es transparente (alpha < 50%), fondo blanco (255)
+			if a < 128*257 {
+				grayMatrix[y][x] = 255.0
+			} else {
+				// Luminancia estándar perceptiva
+				lum := (0.299*float64(r) + 0.587*float64(g) + 0.114*float64(bl)) / 257.0
+				grayMatrix[y][x] = lum
+			}
+		}
+	}
+
+	// Floyd-Steinberg error diffusion
+	for y := 0; y < targetH; y++ {
+		for x := 0; x < targetW; x++ {
+			oldPixel := grayMatrix[y][x]
+			var newPixel float64
+			if oldPixel < 128.0 {
+				newPixel = 0.0 // Negro
+			} else {
+				newPixel = 255.0 // Blanco
+			}
+			grayMatrix[y][x] = newPixel
+			quantError := oldPixel - newPixel
+
+			if x+1 < targetW {
+				grayMatrix[y][x+1] += quantError * 7.0 / 16.0
+			}
+			if y+1 < targetH {
+				if x > 0 {
+					grayMatrix[y+1][x-1] += quantError * 3.0 / 16.0
+				}
+				grayMatrix[y+1][x] += quantError * 5.0 / 16.0
+				if x+1 < targetW {
+					grayMatrix[y+1][x+1] += quantError * 1.0 / 16.0
+				}
+			}
+		}
+	}
+
 	var buf bytes.Buffer
 
 	// Centrar imagen
@@ -124,24 +172,13 @@ func ImageToEscposRaster(src image.Image, maxWidth int) []byte {
 	buf.Write([]byte{0x1D, 0x76, 0x30, 0x00, xL, xH, yL, yH})
 
 	for y := 0; y < targetH; y++ {
-		srcY := bounds.Min.Y + (y * origH / targetH)
 		for xByte := 0; xByte < widthInBytes; xByte++ {
 			var b byte = 0
 			for bit := 0; bit < 8; bit++ {
 				x := xByte*8 + bit
 				if x < targetW {
-					srcX := bounds.Min.X + (x * origW / targetW)
-					r, g, bl, a := src.At(srcX, srcY).RGBA()
-
-					// Si es transparente, fondo blanco
-					if a < 128*257 {
-						// Blanco (bit 0)
-					} else {
-						// Luminancia estándar (0.299 R + 0.587 G + 0.114 B)
-						lum := (0.299*float64(r) + 0.587*float64(g) + 0.114*float64(bl)) / 257.0
-						if lum < 185.0 {
-							b |= (1 << (7 - bit)) // Punto negro
-						}
+					if grayMatrix[y][x] < 128.0 {
+						b |= (1 << (7 - bit)) // Punto negro térmico
 					}
 				}
 			}

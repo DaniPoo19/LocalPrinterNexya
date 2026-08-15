@@ -239,7 +239,7 @@ func FormatOrderTicket(req *PrintOrderRequest) []byte {
 	// 7. PIE DE PÁGINA
 	b.PrintDivider("-")
 	b.SetAlign("center")
-	b.SetBold(true).PrintLine("No valido como factura de venta")
+	b.SetBold(true).PrintLine("No válido como factura de venta")
 	b.SetBold(false)
 
 	footer := req.FooterMessage
@@ -271,7 +271,7 @@ func FormatTestTicket(paperWidth string) []byte {
 	b.SetBold(true).SetDoubleSize(true)
 	b.PrintLine("NEXYA PRINTER")
 	b.SetBold(false).SetDoubleSize(false)
-	b.PrintLine("Impresion de Diagnostico")
+	b.PrintLine("Impresión de Diagnóstico")
 	b.PrintDivider("=")
 	b.SetAlign("left")
 	b.PrintRow2Cols("Estado:", "OK - Conectado")
@@ -282,7 +282,7 @@ func FormatTestTicket(paperWidth string) []byte {
 	b.PrintLine("Hardware Spooler: Operativo")
 	b.PrintLine("Corte de papel: Activo")
 	b.PrintDivider("=")
-	b.SetBold(true).PrintLine("No valido como factura de venta")
+	b.SetBold(true).PrintLine("No válido como factura de venta")
 	b.SetBold(false)
 	b.PrintLine("Sistema Listo para Operar")
 	b.Cut(true)

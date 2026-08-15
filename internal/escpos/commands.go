@@ -35,4 +35,8 @@ var (
 	CmdOpenDrawerPin2 = []byte{0x1B, 0x70, 0x00, 0x19, 0xFA} // ESC p 0 25 250 (Pin 2 RJ12 pulse)
 	CmdOpenDrawerPin5 = []byte{0x1B, 0x70, 0x01, 0x19, 0xFA} // ESC p 1 25 250 (Pin 5 RJ12 pulse)
 	CmdBeep           = []byte{0x1B, 0x42, 0x02, 0x02}       // ESC B 2 2 (Beep buzzer 2 times)
+
+	// CodePage Selection
+	CmdSelectCodePage850  = []byte{0x1B, 0x74, 0x02} // ESC t 2 (CodePage 850 Latin-1)
+	CmdSelectCodePage1252 = []byte{0x1B, 0x74, 0x10} // ESC t 16 (CodePage 1252 Windows Latin-1)
 )

@@ -12,16 +12,65 @@ type Builder struct {
 	lineWidth int // 32 for 58mm, 48 for 80mm
 }
 
-func cleanAscii(s string) string {
-	replacer := strings.NewReplacer(
-		"á", "a", "é", "e", "í", "i", "ó", "o", "ú", "u",
-		"Á", "A", "É", "E", "Í", "I", "Ó", "O", "Ú", "U",
-		"ñ", "n", "Ñ", "N",
-		"ü", "u", "Ü", "U",
-		"¡", "", "¿", "",
-		"–", "-", "—", "-", "’", "'", "”", "\"", "“", "\"",
-	)
-	return replacer.Replace(s)
+// EncodeCP850 convierte una cadena UTF-8 en bytes codificados en CodePage 850 (Latin-1 Multilingüe)
+func EncodeCP850(s string) []byte {
+	var buf bytes.Buffer
+	for _, r := range s {
+		switch r {
+		case 'á':
+			buf.WriteByte(0xA0)
+		case 'é':
+			buf.WriteByte(0x82)
+		case 'í':
+			buf.WriteByte(0xA1)
+		case 'ó':
+			buf.WriteByte(0xA2)
+		case 'ú':
+			buf.WriteByte(0xA3)
+		case 'Á':
+			buf.WriteByte(0xB5)
+		case 'É':
+			buf.WriteByte(0x90)
+		case 'Í':
+			buf.WriteByte(0xD6)
+		case 'Ó':
+			buf.WriteByte(0xE0)
+		case 'Ú':
+			buf.WriteByte(0xE9)
+		case 'ñ':
+			buf.WriteByte(0xA4)
+		case 'Ñ':
+			buf.WriteByte(0xA5)
+		case 'ü':
+			buf.WriteByte(0x81)
+		case 'Ü':
+			buf.WriteByte(0x9A)
+		case '¿':
+			buf.WriteByte(0xA8)
+		case '¡':
+			buf.WriteByte(0xAD)
+		case '°':
+			buf.WriteByte(0xF8)
+		case '•', '·':
+			buf.WriteByte(0xFA) // Punto medio en CP850
+		default:
+			if r <= 0x7F {
+				buf.WriteByte(byte(r))
+			} else {
+				switch r {
+				case '–', '—':
+					buf.WriteByte('-')
+				case '’', '‘':
+					buf.WriteByte('\'')
+				case '“', '”':
+					buf.WriteByte('"')
+				default:
+					buf.WriteString(string(r))
+				}
+			}
+		}
+	}
+	return buf.Bytes()
 }
 
 func NewBuilder(paperWidth string) *Builder {
@@ -36,6 +85,7 @@ func NewBuilder(paperWidth string) *Builder {
 
 func (b *Builder) Init() *Builder {
 	b.buf.Write(CmdInit)
+	b.buf.Write(CmdSelectCodePage850)
 	return b
 }
 
@@ -88,8 +138,7 @@ func (b *Builder) SetSmallFont(enable bool) *Builder {
 }
 
 func (b *Builder) PrintLine(text string) *Builder {
-	cleaned := cleanAscii(text)
-	b.buf.WriteString(cleaned)
+	b.buf.Write(EncodeCP850(text))
 	b.buf.Write(CmdLineFeed)
 	return b
 }
@@ -106,27 +155,24 @@ func (b *Builder) PrintDivider(char string) *Builder {
 		char = "-"
 	}
 	repeated := strings.Repeat(char, b.lineWidth)
-	b.buf.WriteString(repeated)
+	b.buf.Write(EncodeCP850(repeated))
 	b.buf.Write(CmdLineFeed)
 	return b
 }
 
 // PrintRow2Cols imprime 2 columnas justificadas a los extremos (ej: "Total" a la izquierda, "$ 25.000" a la derecha)
 func (b *Builder) PrintRow2Cols(left, right string) *Builder {
-	leftClean := cleanAscii(left)
-	rightClean := cleanAscii(right)
-
-	leftLen := utf8.RuneCountInString(leftClean)
-	rightLen := utf8.RuneCountInString(rightClean)
+	leftLen := utf8.RuneCountInString(left)
+	rightLen := utf8.RuneCountInString(right)
 	totalWidth := b.lineWidth
 
 	spaceCount := totalWidth - leftLen - rightLen
 	if spaceCount < 1 {
 		maxLeft := totalWidth - rightLen - 1
 		if maxLeft > 3 {
-			runes := []rune(leftClean)
+			runes := []rune(left)
 			if len(runes) > maxLeft {
-				leftClean = string(runes[:maxLeft])
+				left = string(runes[:maxLeft])
 				leftLen = maxLeft
 			}
 		}
@@ -136,8 +182,8 @@ func (b *Builder) PrintRow2Cols(left, right string) *Builder {
 		}
 	}
 
-	line := leftClean + strings.Repeat(" ", spaceCount) + rightClean
-	b.buf.WriteString(line)
+	line := left + strings.Repeat(" ", spaceCount) + right
+	b.buf.Write(EncodeCP850(line))
 	b.buf.Write(CmdLineFeed)
 	return b
 }
@@ -145,24 +191,21 @@ func (b *Builder) PrintRow2Cols(left, right string) *Builder {
 // PrintItemRow imprime producto con cantidad, nombre y precio ajustado al ancho de papel
 func (b *Builder) PrintItemRow(qty int, name string, priceStr string) *Builder {
 	qtyStr := fmt.Sprintf("%dx ", qty)
-	nameClean := cleanAscii(name)
-	priceClean := cleanAscii(priceStr)
-
 	qtyLen := utf8.RuneCountInString(qtyStr)
-	priceLen := utf8.RuneCountInString(priceClean)
+	priceLen := utf8.RuneCountInString(priceStr)
 
 	maxNameLen := b.lineWidth - qtyLen - priceLen - 1
 	if maxNameLen < 4 {
 		maxNameLen = 4
 	}
 
-	nameRunes := []rune(nameClean)
+	nameRunes := []rune(name)
 	if len(nameRunes) > maxNameLen {
-		nameClean = string(nameRunes[:maxNameLen])
+		name = string(nameRunes[:maxNameLen])
 	}
 
-	left := qtyStr + nameClean
-	b.PrintRow2Cols(left, priceClean)
+	left := qtyStr + name
+	b.PrintRow2Cols(left, priceStr)
 	return b
 }
 

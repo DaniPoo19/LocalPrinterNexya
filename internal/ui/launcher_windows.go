@@ -27,10 +27,6 @@ func OpenAppWindow(url string) {
 				HideWindow: true,
 			}
 			if err := cmd.Start(); err == nil {
-				go func() {
-					_ = cmd.Wait()
-					os.Exit(0)
-				}()
 				return
 			}
 		}
