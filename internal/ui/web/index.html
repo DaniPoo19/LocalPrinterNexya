@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexya Local Printer - Panel de Control</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-logo">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 6 2 18 2 18 9"></polyline>
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+            <rect x="6" y="14" width="12" height="8"></rect>
+          </svg>
+        </div>
+        <div class="brand-info">
+          <h1>Nexya Printer</h1>
+          <span class="version-tag">v1.0.0</span>
+        </div>
+      </div>
+
+      <div class="header-status">
+        <div class="status-indicator online" id="globalStatusPill">
+          <span class="pulse-dot"></span>
+          <span id="globalStatusText">Servicio Activo</span>
+        </div>
+        <span class="port-badge" id="portBadge">:18181</span>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="app-nav">
+      <button class="nav-btn active" data-tab="status">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+        <span>Estado y Diagnóstico</span>
+      </button>
+      <button class="nav-btn" data-tab="printers">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+        <span>Impresoras</span>
+      </button>
+      <button class="nav-btn" data-tab="jobs">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+        <span>Historial de Trabajos</span>
+        <span class="badge-count" id="jobsCountBadge">0</span>
+      </button>
+      <button class="nav-btn" data-tab="settings">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        <span>Ajustes</span>
+      </button>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="app-main">
+      <!-- TAB 1: ESTADO Y DIAGNÓSTICO -->
+      <section class="tab-pane active" id="tab-status">
+        <div class="grid-cards">
+          <div class="card status-card">
+            <div class="card-header">
+              <span class="card-subtitle">ESTADO DEL HARDWARE</span>
+              <h3>Servidor Spooler Local</h3>
+            </div>
+            <div class="status-metric">
+              <div class="metric-value">
+                <span class="status-circle live"></span>
+                <span>Operativo (127.0.0.1)</span>
+              </div>
+              <p class="metric-desc">Listo para recibir impresiones desde BusinnesAdmin o aplicaciones locales.</p>
+            </div>
+            <div class="stats-row">
+              <div class="stat-item">
+                <span class="stat-label">Tiempo Activo</span>
+                <span class="stat-val" id="statUptime">--:--</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Impresora Activa</span>
+                <span class="stat-val text-truncate" id="statDefaultPrinter">Buscando...</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Copias / Ancho</span>
+                <span class="stat-val" id="statPaperWidth">1 copia • 80mm</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card actions-card">
+            <div class="card-header">
+              <span class="card-subtitle">PRUEBAS Y DIAGNÓSTICO</span>
+              <h3>Acciones Rápidas</h3>
+            </div>
+            <div class="action-buttons">
+              <button class="btn btn-primary" id="btnTestPrint">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                <span>Imprimir Ticket de Prueba</span>
+              </button>
+              <button class="btn btn-emerald" id="btnOpenDrawer">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"></rect><line x1="6" y1="12" x2="18" y2="12"></line></svg>
+                <span>Abrir Cajón Monedero</span>
+              </button>
+              <button class="btn btn-secondary" id="btnRefreshPrinters">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                <span>Escanear Impresoras</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Guide Card -->
+        <div class="card info-card">
+          <div class="info-icon">💡</div>
+          <div class="info-content">
+            <h4>¿Cómo funciona la impresión automática con BusinnesAdmin?</h4>
+            <p>Este agente escucha en el puerto local <code>18181</code>. Cuando en el panel web se confirma un pedido nuevo o se finaliza una venta, la orden se envía instantáneamente a este programa, imprimiendo directo al Spooler de Windows con corte automático de papel sin mostrar ningún diálogo del navegador.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: IMPRESORAS -->
+      <section class="tab-pane" id="tab-printers">
+        <div class="card">
+          <div class="card-header flex-between">
+            <div>
+              <span class="card-subtitle">HARDWARE</span>
+              <h3>Impresoras Instaladas en Windows</h3>
+            </div>
+            <button class="btn btn-sm btn-secondary" id="btnReloadPrintersList">Actualizar Lista</button>
+          </div>
+
+          <div class="printers-list" id="printersListContainer">
+            <div class="loading-spinner">Cargando impresoras...</div>
+          </div>
+
+          <div class="printer-config-box">
+            <h4>Configuración del Hardware Térmico</h4>
+            <div class="form-grid">
+              <div class="form-group" style="grid-column: 1 / -1;">
+                <label>Impresora Predeterminada:</label>
+                <select id="selectDefaultPrinter" class="form-control">
+                  <option value="Predefinida">Impresora Predefinida de Windows</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Ancho del Papel Térmico:</label>
+                <select id="selectPaperWidth" class="form-control">
+                  <option value="80mm">80 mm (Estándar POS)</option>
+                  <option value="58mm">58 mm (Compacto / Datáfono)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Copias por Pedido / Venta:</label>
+                <select id="selectDefaultCopies" class="form-control">
+                  <option value="1">1 Copia (Solo Cliente)</option>
+                  <option value="2">2 Copias (Cliente + Cocina/Caja)</option>
+                  <option value="3">3 Copias (Cliente + Cocina + Despacho)</option>
+                  <option value="4">4 Copias</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-toggles">
+              <label class="toggle-item">
+                <input type="checkbox" id="chkAutoCut" checked>
+                <span>Corte automático de papel al finalizar ticket (GS V 1)</span>
+              </label>
+              <label class="toggle-item">
+                <input type="checkbox" id="chkOpenDrawer" checked>
+                <span>Apertura de gaveta en ventas con efectivo (ESC p)</span>
+              </label>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" id="btnSavePrinterConfig">Guardar Configuración</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: HISTORIAL DE TRABAJOS -->
+      <section class="tab-pane" id="tab-jobs">
+        <div class="card">
+          <div class="card-header flex-between">
+            <div>
+              <span class="card-subtitle">REGISTRO EN TIEMPO REAL</span>
+              <h3>Historial de Trabajos Recibidos</h3>
+            </div>
+            <button class="btn btn-sm btn-secondary" id="btnClearJobs">Limpiar Historial</button>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Hora</th>
+                  <th>Pedido / Documento</th>
+                  <th>Impresora</th>
+                  <th>Copias</th>
+                  <th>Total</th>
+                  <th>Estado</th>
+                  <th>Acción</th>
+                </tr>
+              </thead>
+              <tbody id="jobsTableBody">
+                <tr class="empty-row">
+                  <td colspan="7">No se han recibido trabajos de impresión en esta sesión.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: AJUSTES -->
+      <section class="tab-pane" id="tab-settings">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-subtitle">SISTEMA</span>
+            <h3>Configuración del Agente Nexya</h3>
+          </div>
+
+          <div class="settings-list">
+            <div class="setting-item">
+              <div class="setting-info">
+                <h4>Iniciar automáticamente con Windows</h4>
+                <p>El agente se iniciará en segundo plano al encender la computadora para que la impresión esté siempre lista.</p>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="chkAutostart">
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <h4>Puerto del Servidor HTTP Local</h4>
+                <p>Puerto TCP donde escucha la API local (Por defecto: <code>18181</code>).</p>
+              </div>
+              <div class="setting-control">
+                <input type="text" id="inputPort" value="18181" class="form-control form-control-sm" style="width: 100px; text-align: center;">
+              </div>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <h4>Nivel de Logs</h4>
+                <p>Detalle de depuración registrado en la consola.</p>
+              </div>
+              <div class="setting-control">
+                <select id="selectLogLevel" class="form-control form-control-sm">
+                  <option value="info">Info (Recomendado)</option>
+                  <option value="debug">Debug (Detallado)</option>
+                  <option value="warn">Solo Advertencias</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn btn-primary" id="btnSaveSystemSettings">Guardar Ajustes</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <span>Nexya Printer Daemon • Conexión Segura Spooler Local</span>
+      <span id="footerPing">127.0.0.1:18181</span>
+    </footer>
+  </div>
+
+  <!-- Toast Notification System -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
