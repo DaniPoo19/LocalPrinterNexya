@@ -2,25 +2,50 @@ package escpos
 
 import (
 	"bytes"
+	"context"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
 	"net/http"
+	"sync"
 	"time"
+
+	_ "golang.org/x/image/bmp"
+	_ "golang.org/x/image/webp"
 )
 
-var httpClient = &http.Client{
-	Timeout: 2 * time.Second,
-}
+var (
+	logoCache = sync.Map{}
+	httpClient = &http.Client{
+		Timeout: 6 * time.Second,
+	}
+)
 
-// DownloadAndRasterizeLogo descarga la imagen del logo y la convierte en mapa de bits ESC/POS (GS v 0)
+// DownloadAndRasterizeLogo descarga la imagen del logo y la convierte en mapa de bits ESC/POS (GS v 0) con caché en memoria
 func DownloadAndRasterizeLogo(logoURL string, paperWidth string) ([]byte, error) {
 	if logoURL == "" {
 		return nil, nil
 	}
 
-	resp, err := httpClient.Get(logoURL)
+	cacheKey := paperWidth + ":" + logoURL
+	if cached, ok := logoCache.Load(cacheKey); ok {
+		if data, ok := cached.([]byte); ok && len(data) > 0 {
+			return data, nil
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", logoURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +66,12 @@ func DownloadAndRasterizeLogo(logoURL string, paperWidth string) ([]byte, error)
 		maxDots = 256
 	}
 
-	return ImageToEscposRaster(img, maxDots), nil
+	rasterBytes := ImageToEscposRaster(img, maxDots)
+	if len(rasterBytes) > 0 {
+		logoCache.Store(cacheKey, rasterBytes)
+	}
+
+	return rasterBytes, nil
 }
 
 // ImageToEscposRaster convierte un image.Image en comando ESC/POS GS v 0 0
