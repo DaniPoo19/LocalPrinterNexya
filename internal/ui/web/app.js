@@ -59,6 +59,21 @@ function initActionButtons() {
     showToast('Lista de impresoras actualizada', 'success');
   });
   document.getElementById('btnClearJobs')?.addEventListener('click', handleClearJobs);
+  document.getElementById('btnExitApp')?.addEventListener('click', async () => {
+    if (confirm('¿Deseas cerrar la aplicación y detener el servicio de impresión local?')) {
+      try {
+        await fetch(`${API_BASE}/api/shutdown`, { method: 'POST' });
+      } catch (e) {}
+      window.close();
+    }
+  });
+
+  // Si la ventana se cierra, enviar beacon de apagado al daemon
+  window.addEventListener('beforeunload', () => {
+    try {
+      navigator.sendBeacon(`${API_BASE}/api/shutdown`);
+    } catch (e) {}
+  });
 }
 
 // Forms

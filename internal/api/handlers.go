@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"local-printer-nexya/internal/config"
@@ -418,4 +419,15 @@ func (s *Server) HandleSaveConfig(w http.ResponseWriter, r *http.Request) {
 		Success: true,
 		Message: "Configuración actualizada",
 	})
+}
+
+func (s *Server) HandleShutdown(w http.ResponseWriter, r *http.Request) {
+	s.writeJSON(w, http.StatusOK, ApiResponse{
+		Success: true,
+		Message: "Servicio cerrándose...",
+	})
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		os.Exit(0)
+	}()
 }

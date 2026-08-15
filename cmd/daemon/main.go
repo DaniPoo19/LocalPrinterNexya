@@ -78,6 +78,7 @@ func main() {
 			srv.HandleGetConfig(w, r)
 		}
 	})
+	mux.HandleFunc("/api/shutdown", srv.HandleShutdown)
 
 	// Servir UI Embebida
 	staticFS, err := ui.GetFileSystem()
