@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	_ "golang.org/x/image/bmp"
@@ -25,7 +26,35 @@ import (
 	"local-printer-nexya/internal/ui"
 )
 
-var startTime = time.Now()
+var (
+	startTime       = time.Now()
+	recentPrintJobs = make(map[string]time.Time)
+	recentJobsMutex sync.Mutex
+)
+
+func isDuplicateJob(orderCode string) bool {
+	if orderCode == "" || orderCode == "TEST-001" {
+		return false
+	}
+	recentJobsMutex.Lock()
+	defer recentJobsMutex.Unlock()
+
+	now := time.Now()
+	for k, t := range recentPrintJobs {
+		if now.Sub(t) > 10*time.Second {
+			delete(recentPrintJobs, k)
+		}
+	}
+
+	if lastTime, exists := recentPrintJobs[orderCode]; exists {
+		if now.Sub(lastTime) < 3*time.Second {
+			return true
+		}
+	}
+
+	recentPrintJobs[orderCode] = now
+	return false
+}
 
 type Server struct {
 	cfg *config.Config
@@ -80,6 +109,15 @@ func (s *Server) HandlePrintOrder(w http.ResponseWriter, r *http.Request) {
 		s.writeJSON(w, http.StatusBadRequest, ApiResponse{
 			Success: false,
 			Error:   fmt.Sprintf("Payload inválido: %v", err),
+		})
+		return
+	}
+
+	if isDuplicateJob(req.OrderCode) {
+		log.Printf("[PrintOrder] Pedido #%s duplicado en menos de 3s ignorado", req.OrderCode)
+		s.writeJSON(w, http.StatusOK, ApiResponse{
+			Success: true,
+			Message: fmt.Sprintf("Pedido #%s ya fue impreso (ignorado duplicado)", req.OrderCode),
 		})
 		return
 	}

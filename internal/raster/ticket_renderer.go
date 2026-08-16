@@ -259,26 +259,27 @@ func (c *Canvas) DrawRow2Cols(leftText string, rightText string, isBold bool, si
 }
 
 func (c *Canvas) DrawDashedLine() {
-	c.ensureHeight(c.curY + 16)
+	c.ensureHeight(c.curY + 20)
 	c.curY += 6
 	for x := 12; x < c.width-12; x++ {
-		if (x/8)%2 == 0 {
+		if (x%14) < 8 {
+			c.img.Set(x, c.curY, color.Black)
+			c.img.Set(x, c.curY+1, color.Black)
+		}
+	}
+	c.curY += 12
+}
+
+func (c *Canvas) DrawDottedLine() {
+	c.ensureHeight(c.curY + 18)
+	c.curY += 6
+	for x := 12; x < c.width-12; x++ {
+		if (x%8) < 3 {
 			c.img.Set(x, c.curY, color.Black)
 			c.img.Set(x, c.curY+1, color.Black)
 		}
 	}
 	c.curY += 10
-}
-
-func (c *Canvas) DrawDottedLine() {
-	c.ensureHeight(c.curY + 14)
-	c.curY += 4
-	for x := 12; x < c.width-12; x++ {
-		if x%5 == 0 {
-			c.img.Set(x, c.curY, color.Black)
-		}
-	}
-	c.curY += 8
 }
 
 func (c *Canvas) DrawSolidLine(thickness int) {
