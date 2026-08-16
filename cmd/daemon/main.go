@@ -53,6 +53,7 @@ func main() {
 	mux.HandleFunc("/api/health", srv.HandleHealth)
 	mux.HandleFunc("/api/printers", srv.HandleGetPrinters)
 	mux.HandleFunc("/api/print/order", srv.HandlePrintOrder)
+	mux.HandleFunc("/api/print/raster", srv.HandlePrintRaster)
 	mux.HandleFunc("/api/print/raw", srv.HandlePrintRaw)
 	mux.HandleFunc("/api/drawer/open", srv.HandleOpenDrawer)
 	mux.HandleFunc("/api/test", srv.HandleTestPrint)

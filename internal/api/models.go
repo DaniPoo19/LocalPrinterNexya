@@ -26,6 +26,17 @@ type OpenDrawerRequest struct {
 	PrinterName string `json:"printer_name,omitempty"`
 }
 
+type PrintRasterRequest struct {
+	PrinterName string `json:"printer_name,omitempty"`
+	ImageBase64 string `json:"image_base64"`
+	PaperWidth  string `json:"paper_width,omitempty"`
+	OpenDrawer  bool   `json:"open_drawer"`
+	CutPaper    bool   `json:"cut_paper"`
+	Beep        bool   `json:"beep"`
+	Copies      int    `json:"copies"`
+	OrderCode   string `json:"order_code,omitempty"`
+}
+
 type ApiResponse struct {
 	Success bool   `json:"success"`
 	Message string `json:"message,omitempty"`

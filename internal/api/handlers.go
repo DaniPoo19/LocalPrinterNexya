@@ -1,12 +1,22 @@
 package api
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
+
+	_ "golang.org/x/image/bmp"
+	_ "golang.org/x/image/webp"
 
 	"local-printer-nexya/internal/config"
 	"local-printer-nexya/internal/escpos"
@@ -206,6 +216,134 @@ func (s *Server) HandlePrintRaw(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusOK, ApiResponse{
 		Success: true,
 		Message: "Datos RAW impresos correctamente",
+	})
+}
+
+func (s *Server) HandlePrintRaster(w http.ResponseWriter, r *http.Request) {
+	var req PrintRasterRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.writeJSON(w, http.StatusBadRequest, ApiResponse{
+			Success: false,
+			Error:   "Payload JSON inválido",
+		})
+		return
+	}
+
+	if req.ImageBase64 == "" {
+		s.writeJSON(w, http.StatusBadRequest, ApiResponse{
+			Success: false,
+			Error:   "El campo 'image_base64' es requerido",
+		})
+		return
+	}
+
+	cfg := config.GetConfig()
+	printer := req.PrinterName
+	if printer == "" || printer == "Predefinida" {
+		printer = cfg.DefaultPrinter
+	}
+
+	paperWidth := req.PaperWidth
+	if paperWidth == "" {
+		paperWidth = cfg.PaperWidth
+	}
+	if paperWidth == "" {
+		paperWidth = "80mm"
+	}
+
+	// 1. Limpiar prefijo data URL si existe
+	base64Data := req.ImageBase64
+	if idx := strings.Index(base64Data, ","); idx != -1 {
+		base64Data = base64Data[idx+1:]
+	}
+
+	imgBytes, err := base64.StdEncoding.DecodeString(base64Data)
+	if err != nil {
+		s.writeJSON(w, http.StatusBadRequest, ApiResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Error decodificando imagen base64: %v", err),
+		})
+		return
+	}
+
+	img, _, err := image.Decode(bytes.NewReader(imgBytes))
+	if err != nil {
+		s.writeJSON(w, http.StatusBadRequest, ApiResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Error leyendo formato de imagen gráfica: %v", err),
+		})
+		return
+	}
+
+	maxWidth := 576
+	if strings.EqualFold(strings.TrimSpace(paperWidth), "58mm") {
+		maxWidth = 384
+	}
+
+	b := escpos.NewBuilder(paperWidth)
+	if req.Beep {
+		b.Beep()
+	}
+	if req.OpenDrawer || cfg.OpenDrawer {
+		b.OpenDrawer()
+	}
+
+	rasterBytes := escpos.ImageToEscposRaster(img, maxWidth)
+	b.PrintRasterImage(rasterBytes)
+
+	if req.CutPaper || cfg.AutoCut {
+		b.Cut(true)
+	} else {
+		b.FeedLines(7)
+	}
+
+	payload := b.Bytes()
+	copies := req.Copies
+	if copies < 1 {
+		copies = cfg.DefaultCopies
+	}
+	if copies < 1 {
+		copies = 1
+	}
+
+	var lastErr error
+	for i := 0; i < copies; i++ {
+		err := hardware.PrintRawToPrinter(printer, payload)
+		if err != nil {
+			lastErr = err
+			log.Printf("[PrintRaster ERROR] Error enviando imagen a '%s': %v", printer, err)
+			break
+		}
+		if copies > 1 && i < copies-1 {
+			time.Sleep(300 * time.Millisecond)
+		}
+	}
+
+	orderCode := req.OrderCode
+	if orderCode == "" {
+		orderCode = "RASTER_GRAPHIC"
+	}
+
+	AddJobRecord(PrintJobRecord{
+		OrderCode:   orderCode,
+		PrinterName: printer,
+		Copies:      copies,
+		Success:     lastErr == nil,
+		RawPayload:  payload,
+	})
+
+	if lastErr != nil {
+		s.writeJSON(w, http.StatusInternalServerError, ApiResponse{
+			Success: false,
+			Error:   fmt.Sprintf("Error imprimiendo ticket gráfico en '%s': %v", printer, lastErr),
+		})
+		return
+	}
+
+	log.Printf("[PrintRaster OK] Ticket gráfico 100%% Arial impreso (%d copia/s) en '%s'", copies, printer)
+	s.writeJSON(w, http.StatusOK, ApiResponse{
+		Success: true,
+		Message: fmt.Sprintf("Ticket gráfico Arial impreso exitosamente (%d copia/s)", copies),
 	})
 }
 
