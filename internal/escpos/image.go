@@ -67,18 +67,18 @@ func DownloadAndRasterizeLogo(logoURL string, paperWidth string, logoMaxWidthMm 
 	}
 
 	// 203 DPI = 8 puntos por milímetro (8 dots/mm)
-	// Papel 80mm: Ancho imprimible 72mm = 576 dots (Logo al 50% = 300 dots)
-	// Papel 58mm: Ancho imprimible 48mm = 384 dots (Logo al 50% = 200 dots)
+	// Papel 80mm: Ancho imprimible 72mm = 576 dots (Logo balanceado = 230 dots / 29mm)
+	// Papel 58mm: Ancho imprimible 48mm = 384 dots (Logo balanceado = 150 dots / 19mm)
 	maxHeadDots := 576
-	minLogoDots := 280
+	minLogoDots := 230
 	if strings.EqualFold(strings.TrimSpace(paperWidth), "58mm") {
 		maxHeadDots = 384
-		minLogoDots = 180
+		minLogoDots = 150
 	}
 
 	maxDots := logoMaxWidthMm * 8
 	if maxDots < minLogoDots {
-		maxDots = minLogoDots // Mínimo 50% del ancho del ticket para máxima presencia
+		maxDots = minLogoDots // Mínimo 29mm para proporción exacta
 	}
 	if maxDots > maxHeadDots {
 		maxDots = maxHeadDots

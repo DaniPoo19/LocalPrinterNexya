@@ -269,7 +269,7 @@ func (b *Builder) Beep() *Builder {
 }
 
 func (b *Builder) Cut(partial bool) *Builder {
-	b.FeedLines(3)
+	b.FeedLines(7)
 	if partial {
 		b.buf.Write(CmdCutPartial)
 	} else {
