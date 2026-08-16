@@ -6,12 +6,23 @@ import (
 	"time"
 )
 
+type TicketAddon struct {
+	Name  string  `json:"name"`
+	Price float64 `json:"price,omitempty"`
+}
+
 type TicketProduct struct {
-	Name           string   `json:"name"`
-	Quantity       int      `json:"quantity"`
-	Price          float64  `json:"price"`
-	Observation    string   `json:"observation,omitempty"`
-	Customizations []string `json:"customizations,omitempty"`
+	Name           string        `json:"name"`
+	Quantity       int           `json:"quantity"`
+	Price          float64       `json:"price"`
+	UnitBasePrice  float64       `json:"unit_base_price,omitempty"`
+	TotalPrice     float64       `json:"total_price,omitempty"`
+	Takeaway       bool          `json:"takeaway,omitempty"`
+	VariationName  string        `json:"variation_name,omitempty"`
+	Size           string        `json:"size,omitempty"`
+	Observation    string        `json:"observation,omitempty"`
+	Customizations []string      `json:"customizations,omitempty"`
+	Addons         []TicketAddon `json:"addons,omitempty"`
 }
 
 type PrintOrderRequest struct {
@@ -22,6 +33,9 @@ type PrintOrderRequest struct {
 	ShowLogo             bool            `json:"show_logo"`
 	LogoMaxWidth         int             `json:"logo_max_width,omitempty"`
 	FontScalePercent     int             `json:"font_scale_percent,omitempty"`
+	ShowWaiter           bool            `json:"show_waiter"`
+	ShowCustomer         bool            `json:"show_customer"`
+	ShowPaymentDetails   bool            `json:"show_payment_details"`
 	NIT                  string          `json:"nit,omitempty"`
 	Address              string          `json:"address,omitempty"`
 	Phone                string          `json:"phone,omitempty"`

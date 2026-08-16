@@ -26,6 +26,21 @@ var (
 	fontInitOnce     sync.Once
 )
 
+var saleTypeLabels = map[string]string{
+	"DELIVERY":     "Domicilio",
+	"PICKUP":       "Recoger en tienda",
+	"ON_SITE":      "En mesa",
+	"COUNTER_SALE": "Venta en mostrador",
+}
+
+var paymentTypeLabels = map[string]string{
+	"CASH":          "Efectivo",
+	"BANK_TRANSFER": "Transferencia",
+	"HYBRID":        "Híbrido (Transf. + Efectivo)",
+	"PENDING":       "Pendiente",
+	"CREDIT":        "Crédito",
+}
+
 func initFonts() {
 	fontInitOnce.Do(func() {
 		regBytes, err := os.ReadFile(`C:\Windows\Fonts\arial.ttf`)
@@ -56,7 +71,7 @@ func getFontFace(isBold bool, sizePx float64) font.Face {
 	if f != nil {
 		face, err := opentype.NewFace(f, &opentype.FaceOptions{
 			Size:    sizePx,
-			DPI:     72, // 1 pt = 1 px a 72 DPI
+			DPI:     72,
 			Hinting: font.HintingFull,
 		})
 		if err == nil {
@@ -99,7 +114,6 @@ func (c *Canvas) ensureHeight(requiredY int) {
 	}
 }
 
-// DrawImage aplica escalado y tramado Floyd-Steinberg para imprimir logos con nitidez fotográfica
 func (c *Canvas) DrawImage(src image.Image, targetWidth int) {
 	if src == nil {
 		return
@@ -119,7 +133,6 @@ func (c *Canvas) DrawImage(src image.Image, targetWidth int) {
 	startX := (c.width - targetWidth) / 2
 	c.ensureHeight(c.curY + targetH + 20)
 
-	// 1. Matriz de escala de grises
 	grayMatrix := make([][]float64, targetH)
 	for y := 0; y < targetH; y++ {
 		grayMatrix[y] = make([]float64, targetWidth)
@@ -128,7 +141,7 @@ func (c *Canvas) DrawImage(src image.Image, targetWidth int) {
 			srcX := b.Min.X + (x * origW / targetWidth)
 			r, g, bl, a := src.At(srcX, srcY).RGBA()
 			if a < 128*257 {
-				grayMatrix[y][x] = 255.0 // Fondo transparente = blanco
+				grayMatrix[y][x] = 255.0
 			} else {
 				lum := (0.299*float64(r) + 0.587*float64(g) + 0.114*float64(bl)) / 257.0
 				grayMatrix[y][x] = lum
@@ -136,15 +149,15 @@ func (c *Canvas) DrawImage(src image.Image, targetWidth int) {
 		}
 	}
 
-	// 2. Floyd-Steinberg error diffusion dithering
+	// Floyd-Steinberg error diffusion
 	for y := 0; y < targetH; y++ {
 		for x := 0; x < targetWidth; x++ {
 			oldPixel := grayMatrix[y][x]
 			var newPixel float64
 			if oldPixel < 140.0 {
-				newPixel = 0.0 // Negro
+				newPixel = 0.0
 			} else {
-				newPixel = 255.0 // Blanco
+				newPixel = 255.0
 			}
 			grayMatrix[y][x] = newPixel
 			quantError := oldPixel - newPixel
@@ -164,7 +177,6 @@ func (c *Canvas) DrawImage(src image.Image, targetWidth int) {
 		}
 	}
 
-	// 3. Pintar en el canvas
 	for y := 0; y < targetH; y++ {
 		for x := 0; x < targetWidth; x++ {
 			if grayMatrix[y][x] < 128.0 {
@@ -205,14 +217,14 @@ func (c *Canvas) DrawText(text string, isBold bool, sizePx float64, align string
 		}
 		d.DrawString(line)
 
-		c.curY += int(sizePx * 1.3)
+		c.curY += int(sizePx * 1.25)
 	}
 }
 
 func (c *Canvas) DrawRow2Cols(leftText string, rightText string, isBold bool, sizePx float64) {
 	face := getFontFace(isBold, sizePx)
 	rightAdv := font.MeasureString(face, rightText).Ceil()
-	maxLeftWidth := c.width - rightAdv - 36
+	maxLeftWidth := c.width - rightAdv - 30
 
 	leftLines := wrapText(leftText, face, maxLeftWidth)
 	if len(leftLines) == 0 {
@@ -240,7 +252,7 @@ func (c *Canvas) DrawRow2Cols(leftText string, rightText string, isBold bool, si
 			Dot:  fixed.P(12, c.curY+int(sizePx*0.9)),
 		}
 		dLeft.DrawString(l)
-		c.curY += int(sizePx * 1.3)
+		c.curY += int(sizePx * 1.25)
 	}
 
 	c.curY += 2
@@ -256,6 +268,17 @@ func (c *Canvas) DrawDashedLine() {
 		}
 	}
 	c.curY += 10
+}
+
+func (c *Canvas) DrawDottedLine() {
+	c.ensureHeight(c.curY + 14)
+	c.curY += 4
+	for x := 12; x < c.width-12; x++ {
+		if x%5 == 0 {
+			c.img.Set(x, c.curY, color.Black)
+		}
+	}
+	c.curY += 8
 }
 
 func (c *Canvas) DrawSolidLine(thickness int) {
@@ -306,16 +329,16 @@ func wrapText(text string, face font.Face, maxWidth int) []string {
 	return result
 }
 
-// RenderOrderTicketToImage dibuja un ticket completo en mapa de bits con tipografía TrueType Arial real y tamaños configurados
+// RenderOrderTicketToImage dibuja un ticket completo en mapa de bits con tipografía TrueType Arial real y estructura idéntica a BusinessAdmin
 func RenderOrderTicketToImage(req *escpos.PrintOrderRequest) image.Image {
 	width := 576 // 80mm = 576 dots
 	if strings.EqualFold(strings.TrimSpace(req.PaperWidth), "58mm") {
 		width = 384 // 58mm = 384 dots
 	}
 
-	canvas := NewCanvas(width, 1400)
+	canvas := NewCanvas(width, 1600)
 
-	// Factor de conversión exacto de Píxeles CSS de Chrome (96 DPI) a Dots Térmicos (203 DPI)
+	// Factor de escala exacto CSS (96 DPI) a Dots Térmicos (203 DPI)
 	scalePercent := req.FontScalePercent
 	if scalePercent <= 0 {
 		scalePercent = 95
@@ -334,15 +357,15 @@ func RenderOrderTicketToImage(req *escpos.PrintOrderRequest) image.Image {
 	fsChange := 22.0 * dpiRatio * scaleRatio      // ~44px Arial Bold (5.5mm)
 	fsFooter := 18.0 * dpiRatio * scaleRatio      // ~36px Arial (4.5mm)
 
-	// 1. Logo
+	// 1. LOGO (Condicionado por ShowLogo)
 	if req.ShowLogo && req.LogoUrl != "" {
 		logoImg := fetchImage(req.LogoUrl)
 		if logoImg != nil {
 			logoMaxWidthMm := req.LogoMaxWidth
 			if logoMaxWidthMm <= 0 {
-				logoMaxWidthMm = 25 // 25mm por defecto
+				logoMaxWidthMm = 25
 			}
-			logoDots := logoMaxWidthMm * 8 // 25mm = 200 dots
+			logoDots := logoMaxWidthMm * 8
 			if logoDots < 180 {
 				logoDots = 180
 			}
@@ -353,7 +376,7 @@ func RenderOrderTicketToImage(req *escpos.PrintOrderRequest) image.Image {
 		}
 	}
 
-	// 2. Encabezado de Empresa
+	// 2. ENCABEZADO DE EMPRESA
 	bizName := req.BusinessName
 	if bizName == "" {
 		bizName = "Al carbón de Joche"
@@ -370,81 +393,175 @@ func RenderOrderTicketToImage(req *escpos.PrintOrderRequest) image.Image {
 		canvas.DrawText(fmt.Sprintf("Tel: %s", req.Phone), false, fsSubtitle, "center")
 	}
 
-	// 3. Banner de Pedido
 	canvas.DrawDashedLine()
+
+	// 3. INFO PEDIDO
 	displayCode := req.DailyCode
 	if displayCode == "" {
 		displayCode = req.OrderCode
 	}
-	canvas.DrawText(fmt.Sprintf("PEDIDO #%s", displayCode), true, fsOrder, "center")
-	canvas.DrawDashedLine()
+	canvas.DrawText(fmt.Sprintf("Pedido #%s", displayCode), true, fsOrder, "center")
 
-	// 4. Metadatos de Orden
 	if req.CreatedAt != "" {
 		canvas.DrawRow2Cols("Fecha:", req.CreatedAt, false, fsBody)
 	}
-	if req.TableNumber != "" && req.TableNumber != "0" {
-		canvas.DrawRow2Cols("Mesa:", req.TableNumber, true, fsBody+2)
+
+	saleTypeLabel := saleTypeLabels[req.SaleType]
+	if saleTypeLabel == "" {
+		saleTypeLabel = req.SaleType
 	}
-	if req.WaiterName != "" {
-		canvas.DrawRow2Cols("Mesero:", req.WaiterName, false, fsBody)
-	}
-	if req.CustomerName != "" {
-		canvas.DrawRow2Cols("Cliente:", req.CustomerName, false, fsBody)
-	}
-	if req.CustomerPhone != "" {
-		canvas.DrawRow2Cols("Teléfono:", req.CustomerPhone, false, fsBody)
-	}
-	if req.DeliveryAddress != "" {
-		canvas.DrawRow2Cols("Dirección:", req.DeliveryAddress, false, fsBody)
+	if saleTypeLabel != "" {
+		canvas.DrawRow2Cols("Tipo:", saleTypeLabel, false, fsBody)
 	}
 
-	// 5. Productos
+	paymentLabel := paymentTypeLabels[req.PaymentType]
+	if paymentLabel == "" {
+		paymentLabel = req.PaymentType
+	}
+	if paymentLabel != "" {
+		canvas.DrawRow2Cols("Pago:", paymentLabel, false, fsBody)
+	}
+
+	if req.TableNumber != "" && req.TableNumber != "0" {
+		canvas.DrawDottedLine()
+		canvas.DrawRow2Cols("Mesa:", req.TableNumber, true, fsBody)
+		canvas.DrawDottedLine()
+	}
+
+	if req.ShowWaiter && req.WaiterName != "" {
+		canvas.DrawRow2Cols("Atendido por:", req.WaiterName, false, fsBody)
+	}
+
 	canvas.DrawDashedLine()
-	canvas.DrawRow2Cols("CANT PRODUCTO", "TOTAL", true, fsBody)
-	canvas.DrawDashedLine()
+
+	// 4. CLIENTE (Condicionado por ShowCustomer)
+	if req.ShowCustomer && req.CustomerName != "" {
+		canvas.DrawText(fmt.Sprintf("CLIENTE: %s", req.CustomerName), true, fsItemName, "left")
+		if req.CustomerDoc != "" {
+			docType := req.CustomerDocType
+			if docType == "" {
+				docType = "CC"
+			}
+			canvas.DrawText(fmt.Sprintf("Doc: %s %s", docType, req.CustomerDoc), false, fsDetail, "left")
+		}
+		if req.CustomerPhone != "" {
+			canvas.DrawText(fmt.Sprintf("Tel: %s", req.CustomerPhone), false, fsDetail, "left")
+		}
+		if req.DeliveryAddress != "" {
+			canvas.DrawText(fmt.Sprintf("Dir: %s", req.DeliveryAddress), false, fsDetail, "left")
+		}
+		canvas.DrawDashedLine()
+	}
+
+	// 5. PRODUCTOS
+	canvas.DrawText("PRODUCTOS", true, fsBody, "left")
 
 	for _, p := range req.Products {
-		left := fmt.Sprintf("%dx %s", p.Quantity, p.Name)
-		right := fmt.Sprintf("$ %s", formatCurrency(p.Price*float64(p.Quantity)))
-		canvas.DrawRow2Cols(left, right, true, fsItemName)
+		takeawayTag := ""
+		if p.Takeaway {
+			takeawayTag = " (Llevar)"
+		}
+		nameLeft := fmt.Sprintf("%dx %s%s", p.Quantity, p.Name, takeawayTag)
 
+		unitPrice := p.UnitBasePrice
+		if unitPrice <= 0 {
+			unitPrice = p.Price
+		}
+		priceRight := fmt.Sprintf("$ %s", formatCurrency(unitPrice))
+
+		canvas.DrawRow2Cols(nameLeft, priceRight, true, fsItemName)
+
+		if p.VariationName != "" && p.VariationName != "Único" {
+			canvas.DrawText(fmt.Sprintf("Variación: %s", p.VariationName), false, fsDetail, "left")
+		}
+		if p.Size != "" {
+			canvas.DrawText(p.Size, false, fsDetail, "left")
+		}
 		for _, cust := range p.Customizations {
-			canvas.DrawText(fmt.Sprintf("  • %s", cust), false, fsDetail, "left")
+			canvas.DrawText(cust, false, fsDetail, "left")
+		}
+		if len(p.Addons) > 0 {
+			canvas.DrawText("Adiciones:", true, fsDetail, "left")
+			for _, add := range p.Addons {
+				addLeft := fmt.Sprintf("+ %s", add.Name)
+				addRight := ""
+				if add.Price > 0 {
+					addRight = fmt.Sprintf("$ %s", formatCurrency(add.Price))
+				}
+				canvas.DrawRow2Cols(addLeft, addRight, false, fsDetail)
+			}
 		}
 		if p.Observation != "" {
-			canvas.DrawText(fmt.Sprintf("  Nota: %s", p.Observation), false, fsDetail, "left")
+			canvas.DrawText(fmt.Sprintf("Nota: %s", p.Observation), false, fsDetail, "left")
 		}
-		canvas.curY += 4
+
+		// Fila de Total por Producto alineada a la derecha
+		totalProd := p.TotalPrice
+		if totalProd <= 0 {
+			totalProd = p.Price * float64(p.Quantity)
+		}
+		if p.Quantity > 1 {
+			calcText := fmt.Sprintf("%d × $ %s = $ %s", p.Quantity, formatCurrency(unitPrice), formatCurrency(totalProd))
+			canvas.DrawText(calcText, true, fsBody, "right")
+		} else {
+			canvas.DrawText(fmt.Sprintf("$ %s", formatCurrency(totalProd)), true, fsBody, "right")
+		}
+
+		// Separación punteada entre productos tal como en BusinessAdmin
+		canvas.DrawDottedLine()
 	}
 
-	// 6. Totales
 	canvas.DrawDashedLine()
+
+	// 6. SUBTOTAL Y DOMICILIO
 	if req.DeliveryCost > 0 {
 		canvas.DrawRow2Cols("Subtotal:", fmt.Sprintf("$ %s", formatCurrency(req.Subtotal)), false, fsBody)
 		canvas.DrawRow2Cols("Domicilio:", fmt.Sprintf("$ %s", formatCurrency(req.DeliveryCost)), false, fsBody)
+		canvas.DrawDashedLine()
 	}
+
+	// 7. TOTAL
 	canvas.DrawDoubleLine()
 	canvas.DrawRow2Cols("TOTAL:", fmt.Sprintf("$ %s", formatCurrency(req.Total)), true, fsTotal)
 	canvas.DrawDoubleLine()
 
-	// 7. Métodos de Pago
-	if req.CashAmount > 0 || strings.EqualFold(req.PaymentType, "CASH") || strings.EqualFold(req.PaymentType, "EFECTIVO") {
-		canvas.curY += 6
-		if req.CashBillDenomination > 0 {
-			canvas.DrawRow2Cols("COBRAR EN EFECTIVO:", fmt.Sprintf("$ %s", formatCurrency(req.CashBillDenomination)), true, fsChange)
-			canvas.DrawRow2Cols("VUELTO A DAR:", fmt.Sprintf("$ %s", formatCurrency(req.ChangeAmount)), true, fsChange+2)
-		} else {
-			canvas.DrawRow2Cols("PAGO EFECTIVO:", fmt.Sprintf("$ %s", formatCurrency(req.Total)), true, fsChange)
+	// 8. DETALLE DEL PAGO Y CAJA DE EFECTIVO (Condicionado por ShowPaymentDetails)
+	if req.ShowPaymentDetails {
+		hasCashOrTransfer := req.CashAmount > 0 || req.TransferAmount > 0 || req.CashBillDenomination > 0 || req.ChangeAmount > 0
+		if hasCashOrTransfer {
+			canvas.DrawDashedLine()
+			canvas.DrawText("DETALLE DEL PAGO", true, fsBody, "left")
+
+			if req.TransferAmount > 0 {
+				canvas.DrawRow2Cols("Transferencia:", fmt.Sprintf("$ %s", formatCurrency(req.TransferAmount)), false, fsBody)
+			}
+			if req.CashAmount > 0 && req.TransferAmount > 0 {
+				canvas.DrawRow2Cols("Efectivo:", fmt.Sprintf("$ %s", formatCurrency(req.CashAmount)), false, fsBody)
+			}
+
+			// Caja de cobro en efectivo destacada
+			if req.CashBillDenomination > 0 || req.ChangeAmount > 0 {
+				canvas.curY += 4
+				canvas.DrawSolidLine(2)
+				canvas.DrawText("COBRAR EN EFECTIVO", true, fsBody, "center")
+				canvas.curY += 2
+
+				if req.CashBillDenomination > 0 {
+					canvas.DrawRow2Cols("Paga con:", fmt.Sprintf("$ %s", formatCurrency(req.CashBillDenomination)), true, fsBody)
+				}
+				if req.ChangeAmount > 0 {
+					canvas.DrawRow2Cols("VUELTO A DAR:", fmt.Sprintf("$ %s", formatCurrency(req.ChangeAmount)), true, fsChange)
+				}
+				canvas.DrawSolidLine(2)
+				canvas.curY += 4
+			}
 		}
-		canvas.curY += 6
-	} else if req.TransferAmount > 0 {
-		canvas.DrawRow2Cols("TRANSFERENCIA:", fmt.Sprintf("$ %s", formatCurrency(req.TransferAmount)), true, fsChange)
 	}
 
-	// 8. Pie de Página
+	// 9. PIE DE PÁGINA
 	canvas.DrawDashedLine()
-	canvas.DrawText("No válido como factura de venta", true, fsFooter-2, "center")
+	canvas.DrawText("No válido como factura de venta", true, fsFooter, "center")
+
 	footer := req.FooterMessage
 	if footer == "" {
 		footer = "¡Gracias por su compra!\nVuelva pronto"
