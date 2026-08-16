@@ -51,6 +51,7 @@ type PrintOrderRequest struct {
 	CutPaper             bool            `json:"cut_paper"`
 	Beep                 bool            `json:"beep"`
 	Copies               int             `json:"copies,omitempty"`
+	HTML                 string          `json:"html,omitempty"`
 }
 
 func FormatOrderTicket(req *PrintOrderRequest) []byte {

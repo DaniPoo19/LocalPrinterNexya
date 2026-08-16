@@ -21,6 +21,7 @@ import (
 	"local-printer-nexya/internal/config"
 	"local-printer-nexya/internal/escpos"
 	"local-printer-nexya/internal/hardware"
+	"local-printer-nexya/internal/htmlprint"
 	"local-printer-nexya/internal/ui"
 )
 
@@ -112,6 +113,35 @@ func (s *Server) HandlePrintOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	if copies > 10 {
 		copies = 10
+	}
+
+	// 5. Si viene el HTML con fuente Arial enriquecida, imprimir vía Chromium Headless
+	if req.HTML != "" {
+		if req.OpenDrawer {
+			_ = hardware.PrintRawToPrinter(req.PrinterName, escpos.CmdOpenDrawerPin2)
+			_ = hardware.PrintRawToPrinter(req.PrinterName, escpos.CmdOpenDrawerPin5)
+		}
+		if req.Beep {
+			_ = hardware.PrintRawToPrinter(req.PrinterName, escpos.CmdBeep)
+		}
+
+		err := htmlprint.PrintHtmlSilently(req.PrinterName, req.HTML, copies)
+		if err == nil {
+			log.Printf("[PrintOrder HTML OK] Pedido #%s impreso vía Chromium Headless (100%% Arial) en '%s'", req.OrderCode, req.PrinterName)
+			AddJobRecord(PrintJobRecord{
+				OrderCode:   req.OrderCode,
+				PrinterName: req.PrinterName,
+				Copies:      copies,
+				Total:       req.Total,
+				Success:     true,
+			})
+			s.writeJSON(w, http.StatusOK, ApiResponse{
+				Success: true,
+				Message: fmt.Sprintf("Pedido #%s impreso exitosamente en formato Arial Chromium (%d copia/s)", req.OrderCode, copies),
+			})
+			return
+		}
+		log.Printf("[PrintOrder HTML WARN] Fallo Chromium Headless (%v), recurriendo a ESC/POS...", err)
 	}
 
 	payload := escpos.FormatOrderTicket(&req)
