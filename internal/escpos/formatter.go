@@ -171,23 +171,17 @@ func FormatOrderTicket(req *PrintOrderRequest) []byte {
 	b.PrintDivider("-")
 
 	for i, p := range req.Products {
-		// Cabecera del producto en negrita
-		b.SetBold(true)
-		b.PrintItemRow(p.Quantity, p.Name, formatCurrency(p.Price))
-		b.SetBold(false)
+		// Cabecera del producto en doble altura negrita (3.5mm de alto, igual a Chrome)
+		b.PrintItemRowDoubleHeight(p.Quantity, p.Name, formatCurrency(p.Price))
 
-		// Personalizaciones / Sabores / Adiciones con precio en fuente B
+		// Personalizaciones / Sabores / Adiciones con precio
 		for _, cust := range p.Customizations {
-			b.SetSmallFont(true)
 			b.PrintLine(fmt.Sprintf("  • %s", cust))
-			b.SetSmallFont(false)
 		}
 
 		// Observaciones
 		if p.Observation != "" {
-			b.SetSmallFont(true)
 			b.PrintLine(fmt.Sprintf("  * NOTA: %s", p.Observation))
-			b.SetSmallFont(false)
 		}
 
 		// Subtotal si cantidad > 1
@@ -216,9 +210,8 @@ func FormatOrderTicket(req *PrintOrderRequest) []byte {
 		b.PrintRow2Cols("Descuento:", fmt.Sprintf("-%s", formatCurrency(req.Discount)))
 	}
 
-	b.SetBold(true).SetDoubleHeight(true)
-	b.PrintRow2Cols("TOTAL:", formatCurrency(req.Total))
-	b.SetBold(false).SetDoubleHeight(false)
+	b.PrintDivider("=")
+	b.PrintDoubleSizeRow2Cols("TOTAL:", formatCurrency(req.Total))
 	b.PrintDivider("=")
 
 	// 6. DETALLES DE PAGO Y VUELTO (COBRAR EN EFECTIVO)
@@ -237,8 +230,8 @@ func FormatOrderTicket(req *PrintOrderRequest) []byte {
 		if req.CashBillDenomination > 0 || req.ChangeAmount > 0 {
 			b.PrintDivider("-")
 			b.SetAlign("center")
-			b.SetBold(true).PrintLine("COBRAR EN EFECTIVO")
-			b.SetBold(false).SetAlign("left")
+			b.SetBold(true).SetDoubleHeight(true).PrintLine("COBRAR EN EFECTIVO")
+			b.SetBold(false).SetDoubleHeight(false).SetAlign("left")
 			if req.CashBillDenomination > 0 {
 				b.PrintRow2Cols("Paga con:", formatCurrency(req.CashBillDenomination))
 			}

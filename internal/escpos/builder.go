@@ -86,6 +86,16 @@ func NewBuilder(paperWidth string) *Builder {
 func (b *Builder) Init() *Builder {
 	b.buf.Write(CmdInit)
 	b.buf.Write(CmdSelectCodePage850)
+	b.buf.Write(CmdLineSpacing36)
+	return b
+}
+
+func (b *Builder) SetLineSpacing(dots int) *Builder {
+	if dots <= 0 {
+		b.buf.Write(CmdLineSpacing24)
+	} else {
+		b.buf.Write([]byte{0x1B, 0x33, byte(dots)})
+	}
 	return b
 }
 
@@ -157,6 +167,44 @@ func (b *Builder) PrintDivider(char string) *Builder {
 	repeated := strings.Repeat(char, b.lineWidth)
 	b.buf.Write(EncodeCP850(repeated))
 	b.buf.Write(CmdLineFeed)
+	return b
+}
+
+// PrintDoubleSizeRow2Cols imprime 2 columnas en Doble Tamaño Completo (letras grandes de 5mm, 24 caracteres por línea)
+func (b *Builder) PrintDoubleSizeRow2Cols(left, right string) *Builder {
+	leftLen := utf8.RuneCountInString(left)
+	rightLen := utf8.RuneCountInString(right)
+	totalWidth := b.lineWidth / 2 // 24 caracteres para 80mm
+
+	spaceCount := totalWidth - leftLen - rightLen
+	if spaceCount < 1 {
+		maxLeft := totalWidth - rightLen - 1
+		if maxLeft > 3 {
+			runes := []rune(left)
+			if len(runes) > maxLeft {
+				left = string(runes[:maxLeft])
+				leftLen = maxLeft
+			}
+		}
+		spaceCount = totalWidth - leftLen - rightLen
+		if spaceCount < 1 {
+			spaceCount = 1
+		}
+	}
+
+	line := left + strings.Repeat(" ", spaceCount) + right
+	b.SetBold(true).SetDoubleSize(true)
+	b.buf.Write(EncodeCP850(line))
+	b.buf.Write(CmdLineFeed)
+	b.SetBold(false).SetDoubleSize(false)
+	return b
+}
+
+// PrintItemRowDoubleHeight imprime el producto y precio en Doble Altura Negrita (3.5mm de alto, igual a Chrome)
+func (b *Builder) PrintItemRowDoubleHeight(qty int, name string, priceStr string) *Builder {
+	b.SetBold(true).SetDoubleHeight(true)
+	b.PrintItemRow(qty, name, priceStr)
+	b.SetBold(false).SetDoubleHeight(false)
 	return b
 }
 

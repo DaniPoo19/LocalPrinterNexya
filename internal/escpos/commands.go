@@ -39,4 +39,8 @@ var (
 	// CodePage Selection
 	CmdSelectCodePage850  = []byte{0x1B, 0x74, 0x02} // ESC t 2 (CodePage 850 Latin-1)
 	CmdSelectCodePage1252 = []byte{0x1B, 0x74, 0x10} // ESC t 16 (CodePage 1252 Windows Latin-1)
+
+	// Line Spacing
+	CmdLineSpacing36 = []byte{0x1B, 0x33, 0x24} // ESC 3 36 (36 dots line spacing = 1.2 line height)
+	CmdLineSpacing24 = []byte{0x1B, 0x33, 0x18} // ESC 3 24 (Default 24 dots line spacing)
 )
