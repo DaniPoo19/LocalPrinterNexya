@@ -9,6 +9,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,17 +24,17 @@ var (
 	}
 )
 
-// DownloadAndRasterizeLogo descarga la imagen del logo y la convierte en mapa de bits ESC/POS (GS v 0) con tamaño proporcional y caché
-func DownloadAndRasterizeLogo(logoURL string, paperWidth string, logoMaxWidthPercent int) ([]byte, error) {
+// DownloadAndRasterizeLogo descarga la imagen del logo y la convierte en mapa de bits ESC/POS (GS v 0) con tamaño calibrado en milímetros reales a 203 DPI
+func DownloadAndRasterizeLogo(logoURL string, paperWidth string, logoMaxWidthMm int) ([]byte, error) {
 	if logoURL == "" {
 		return nil, nil
 	}
 
-	if logoMaxWidthPercent <= 0 {
-		logoMaxWidthPercent = 25
+	if logoMaxWidthMm <= 0 {
+		logoMaxWidthMm = 25
 	}
 
-	cacheKey := fmt.Sprintf("%s:%d:%s", paperWidth, logoMaxWidthPercent, logoURL)
+	cacheKey := fmt.Sprintf("%s:%d:%s", paperWidth, logoMaxWidthMm, logoURL)
 	if cached, ok := logoCache.Load(cacheKey); ok {
 		if data, ok := cached.([]byte); ok && len(data) > 0 {
 			return data, nil
@@ -65,19 +66,21 @@ func DownloadAndRasterizeLogo(logoURL string, paperWidth string, logoMaxWidthPer
 		return nil, err
 	}
 
-	// Base total dots: 384 para 80mm, 256 para 58mm
-	baseDots := 384
-	if paperWidth == "58mm" {
-		baseDots = 256
+	// 203 DPI = 8 puntos por milímetro (8 dots/mm)
+	// Papel 80mm: Ancho imprimible 72mm = 576 dots
+	// Papel 58mm: Ancho imprimible 48mm = 384 dots
+	maxHeadDots := 576
+	if strings.EqualFold(strings.TrimSpace(paperWidth), "58mm") {
+		maxHeadDots = 384
 	}
 
-	// Calcular ancho proporcional según el porcentaje de Mongo (ej: 25% de 384 = 96 dots)
-	maxDots := int(float64(baseDots) * (float64(logoMaxWidthPercent) / 100.0))
-	if maxDots < 48 {
-		maxDots = 48
+	// Calcular puntos reales según los milímetros configurados (ej: 25mm * 8 = 200 dots)
+	maxDots := logoMaxWidthMm * 8
+	if maxDots < 120 {
+		maxDots = 120 // Mínimo 15mm
 	}
-	if maxDots > baseDots {
-		maxDots = baseDots
+	if maxDots > maxHeadDots {
+		maxDots = maxHeadDots
 	}
 
 	rasterBytes := ImageToEscposRaster(img, maxDots)

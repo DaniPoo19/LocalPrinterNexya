@@ -71,11 +71,11 @@ func FormatOrderTicket(req *PrintOrderRequest) []byte {
 
 	// 0. LOGO DE LA EMPRESA (Si está activado)
 	if req.ShowLogo && req.LogoUrl != "" {
-		maxWidthPct := req.LogoMaxWidth
-		if maxWidthPct <= 0 {
-			maxWidthPct = 25
+		logoWidthMm := req.LogoMaxWidth
+		if logoWidthMm <= 0 {
+			logoWidthMm = 25
 		}
-		if logoBytes, err := DownloadAndRasterizeLogo(req.LogoUrl, paperWidth, maxWidthPct); err == nil && len(logoBytes) > 0 {
+		if logoBytes, err := DownloadAndRasterizeLogo(req.LogoUrl, paperWidth, logoWidthMm); err == nil && len(logoBytes) > 0 {
 			b.PrintRasterImage(logoBytes)
 			b.FeedLines(1)
 		}
@@ -101,7 +101,7 @@ func FormatOrderTicket(req *PrintOrderRequest) []byte {
 
 	b.PrintDivider("-")
 
-	// 2. DETALLES DEL PEDIDO
+	// 2. DETALLES DEL PEDIDO (BANNER DESTACADO)
 	b.SetAlign("center")
 	b.SetBold(true).SetDoubleSize(true)
 	displayCode := req.OrderCode
@@ -134,7 +134,7 @@ func FormatOrderTicket(req *PrintOrderRequest) []byte {
 
 	if req.TableNumber != "" && req.TableNumber != "0" {
 		b.SetBold(true)
-		b.PrintRow2Cols("Mesa:", req.TableNumber)
+		b.PrintRow2Cols("Mesa:", fmt.Sprintf("Mesa #%s", req.TableNumber))
 		b.SetBold(false)
 	}
 
@@ -170,14 +170,16 @@ func FormatOrderTicket(req *PrintOrderRequest) []byte {
 	b.SetBold(false)
 	b.PrintDivider("-")
 
-	for _, p := range req.Products {
-		priceStr := formatCurrency(p.Price * float64(p.Quantity))
-		b.PrintItemRow(p.Quantity, p.Name, priceStr)
+	for i, p := range req.Products {
+		// Cabecera del producto en negrita
+		b.SetBold(true)
+		b.PrintItemRow(p.Quantity, p.Name, formatCurrency(p.Price))
+		b.SetBold(false)
 
-		// Personalizaciones / Sabores / Adiciones con precio
+		// Personalizaciones / Sabores / Adiciones con precio en fuente B
 		for _, cust := range p.Customizations {
 			b.SetSmallFont(true)
-			b.PrintLine(fmt.Sprintf("  %s", cust))
+			b.PrintLine(fmt.Sprintf("  • %s", cust))
 			b.SetSmallFont(false)
 		}
 
@@ -186,6 +188,18 @@ func FormatOrderTicket(req *PrintOrderRequest) []byte {
 			b.SetSmallFont(true)
 			b.PrintLine(fmt.Sprintf("  * NOTA: %s", p.Observation))
 			b.SetSmallFont(false)
+		}
+
+		// Subtotal si cantidad > 1
+		if p.Quantity > 1 {
+			subtotalLine := fmt.Sprintf("%d × %s = %s", p.Quantity, formatCurrency(p.Price), formatCurrency(p.Price*float64(p.Quantity)))
+			b.SetBold(true)
+			b.PrintRow2Cols("", subtotalLine)
+			b.SetBold(false)
+		}
+
+		if i < len(req.Products)-1 {
+			b.PrintDivider(".")
 		}
 	}
 
@@ -205,11 +219,11 @@ func FormatOrderTicket(req *PrintOrderRequest) []byte {
 	b.SetBold(true).SetDoubleHeight(true)
 	b.PrintRow2Cols("TOTAL:", formatCurrency(req.Total))
 	b.SetBold(false).SetDoubleHeight(false)
+	b.PrintDivider("=")
 
 	// 6. DETALLES DE PAGO Y VUELTO (COBRAR EN EFECTIVO)
 	hasPaymentBreakdown := req.CashAmount > 0 || req.TransferAmount > 0 || req.CashBillDenomination > 0 || req.ChangeAmount > 0
 	if hasPaymentBreakdown {
-		b.PrintDivider("-")
 		b.SetBold(true).PrintLine("DETALLE DEL PAGO")
 		b.SetBold(false)
 
@@ -229,9 +243,9 @@ func FormatOrderTicket(req *PrintOrderRequest) []byte {
 				b.PrintRow2Cols("Paga con:", formatCurrency(req.CashBillDenomination))
 			}
 			if req.ChangeAmount > 0 {
-				b.SetBold(true)
+				b.SetBold(true).SetDoubleHeight(true)
 				b.PrintRow2Cols("VUELTO A DAR:", formatCurrency(req.ChangeAmount))
-				b.SetBold(false)
+				b.SetBold(false).SetDoubleHeight(false)
 			}
 		}
 	}
