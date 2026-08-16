@@ -21,7 +21,7 @@ import (
 	"local-printer-nexya/internal/config"
 	"local-printer-nexya/internal/escpos"
 	"local-printer-nexya/internal/hardware"
-	"local-printer-nexya/internal/htmlprint"
+	"local-printer-nexya/internal/raster"
 	"local-printer-nexya/internal/ui"
 )
 
@@ -115,36 +115,32 @@ func (s *Server) HandlePrintOrder(w http.ResponseWriter, r *http.Request) {
 		copies = 10
 	}
 
-	// 5. Si viene el HTML con fuente Arial enriquecida, imprimir vía Chromium Headless
-	if req.HTML != "" {
-		if req.OpenDrawer {
-			_ = hardware.PrintRawToPrinter(req.PrinterName, escpos.CmdOpenDrawerPin2)
-			_ = hardware.PrintRawToPrinter(req.PrinterName, escpos.CmdOpenDrawerPin5)
-		}
-		if req.Beep {
-			_ = hardware.PrintRawToPrinter(req.PrinterName, escpos.CmdBeep)
-		}
+	// 5. Renderizar el ticket con tipografía TrueType Arial real (203 DPI) a mapa de bits ESC/POS
+	ticketImg := raster.RenderOrderTicketToImage(&req)
 
-		err := htmlprint.PrintHtmlSilently(req.PrinterName, req.HTML, copies)
-		if err == nil {
-			log.Printf("[PrintOrder HTML OK] Pedido #%s impreso vía Chromium Headless (100%% Arial) en '%s'", req.OrderCode, req.PrinterName)
-			AddJobRecord(PrintJobRecord{
-				OrderCode:   req.OrderCode,
-				PrinterName: req.PrinterName,
-				Copies:      copies,
-				Total:       req.Total,
-				Success:     true,
-			})
-			s.writeJSON(w, http.StatusOK, ApiResponse{
-				Success: true,
-				Message: fmt.Sprintf("Pedido #%s impreso exitosamente en formato Arial Chromium (%d copia/s)", req.OrderCode, copies),
-			})
-			return
-		}
-		log.Printf("[PrintOrder HTML WARN] Fallo Chromium Headless (%v), recurriendo a ESC/POS...", err)
+	maxWidth := 576
+	if strings.EqualFold(strings.TrimSpace(req.PaperWidth), "58mm") {
+		maxWidth = 384
 	}
 
-	payload := escpos.FormatOrderTicket(&req)
+	b := escpos.NewBuilder(req.PaperWidth)
+	if req.Beep {
+		b.Beep()
+	}
+	if req.OpenDrawer {
+		b.OpenDrawer()
+	}
+
+	rasterBytes := escpos.ImageToEscposRaster(ticketImg, maxWidth)
+	b.PrintRasterImage(rasterBytes)
+
+	if req.CutPaper {
+		b.Cut(true) // Avance de 7 líneas completo + corte
+	} else {
+		b.FeedLines(7)
+	}
+
+	payload := b.Bytes()
 
 	var lastErr error
 	for i := 0; i < copies; i++ {
@@ -168,20 +164,17 @@ func (s *Server) HandlePrintOrder(w http.ResponseWriter, r *http.Request) {
 		Success:     lastErr == nil,
 		RawPayload:  payload,
 	}
-	if lastErr != nil {
-		jobRecord.Error = lastErr.Error()
-	}
 	AddJobRecord(jobRecord)
 
 	if lastErr != nil {
 		s.writeJSON(w, http.StatusInternalServerError, ApiResponse{
 			Success: false,
-			Error:   fmt.Sprintf("Fallo al imprimir en '%s': %v", req.PrinterName, lastErr),
+			Error:   fmt.Sprintf("Error enviando ticket a la impresora '%s': %v", req.PrinterName, lastErr),
 		})
 		return
 	}
 
-	log.Printf("[PrintOrder OK] Pedido #%s impreso (%d copia/s) en '%s'", req.OrderCode, copies, req.PrinterName)
+	log.Printf("[PrintOrder OK] Pedido #%s impreso exitosamente (%d copia/s) en '%s' con tipografía Arial TrueType", req.OrderCode, copies, req.PrinterName)
 	s.writeJSON(w, http.StatusOK, ApiResponse{
 		Success: true,
 		Message: fmt.Sprintf("Pedido #%s impreso exitosamente (%d copia/s)", req.OrderCode, copies),
