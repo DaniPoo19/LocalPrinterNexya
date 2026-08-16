@@ -315,23 +315,24 @@ func RenderOrderTicketToImage(req *escpos.PrintOrderRequest) image.Image {
 
 	canvas := NewCanvas(width, 1400)
 
-	// Factor de escala basado en los parámetros de la empresa/sucursal (ej: 95% para Joche)
+	// Factor de conversión exacto de Píxeles CSS de Chrome (96 DPI) a Dots Térmicos (203 DPI)
 	scalePercent := req.FontScalePercent
 	if scalePercent <= 0 {
 		scalePercent = 95
 	}
 	scaleRatio := float64(scalePercent) / 100.0
+	dpiRatio := 203.0 / 96.0 // 2.114583
 
-	// Tamaños de fuente calibrados a 203 DPI (8 dots/mm)
-	fsTitle := 34.0 * scaleRatio       // ~32px Arial Bold (4mm de altura física)
-	fsSubtitle := 22.0 * scaleRatio    // ~21px Arial
-	fsOrder := 38.0 * scaleRatio       // ~36px Arial Bold
-	fsItemName := 28.0 * scaleRatio    // ~26.5px Arial Bold (3.3mm)
-	fsBody := 23.0 * scaleRatio        // ~22px Arial
-	fsDetail := 20.0 * scaleRatio      // ~19px Arial
-	fsTotal := 36.0 * scaleRatio       // ~34px Arial Bold (4.25mm)
-	fsChange := 26.0 * scaleRatio      // ~24.5px Arial Bold
-	fsFooter := 22.0 * scaleRatio      // ~21px Arial
+	// Tamaños de fuente calibrados 1:1 con el diálogo de Google Chrome
+	fsTitle := 28.0 * dpiRatio * scaleRatio       // ~56px Arial Bold (7.0mm)
+	fsSubtitle := 18.0 * dpiRatio * scaleRatio    // ~36px Arial (4.5mm)
+	fsOrder := 30.0 * dpiRatio * scaleRatio       // ~60px Arial Bold (7.5mm)
+	fsItemName := 21.0 * dpiRatio * scaleRatio    // ~42px Arial Bold (5.3mm)
+	fsBody := 19.0 * dpiRatio * scaleRatio        // ~38px Arial (4.8mm)
+	fsDetail := 16.0 * dpiRatio * scaleRatio      // ~32px Arial (4.0mm)
+	fsTotal := 28.0 * dpiRatio * scaleRatio       // ~56px Arial Bold (7.0mm)
+	fsChange := 22.0 * dpiRatio * scaleRatio      // ~44px Arial Bold (5.5mm)
+	fsFooter := 18.0 * dpiRatio * scaleRatio      // ~36px Arial (4.5mm)
 
 	// 1. Logo
 	if req.ShowLogo && req.LogoUrl != "" {
