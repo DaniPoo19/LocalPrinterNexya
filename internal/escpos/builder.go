@@ -257,9 +257,14 @@ func (b *Builder) PrintItemRow(qty int, name string, priceStr string) *Builder {
 	return b
 }
 
+// BuildDrawerKickBytes retorna la secuencia pura de apertura de cajón monedero
+// SIN comandos de reinicio (ESC @) ni cambios de página que puedan interferir en el controlador RJ11
+func BuildDrawerKickBytes() []byte {
+	return CmdOpenDrawerUniversal
+}
+
 func (b *Builder) OpenDrawer() *Builder {
-	b.buf.Write(CmdOpenDrawerPin2)
-	b.buf.Write(CmdOpenDrawerPin5)
+	b.buf.Write(CmdOpenDrawerUniversal)
 	return b
 }
 

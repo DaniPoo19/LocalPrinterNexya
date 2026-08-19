@@ -140,9 +140,8 @@ func (s *Server) HandlePrintOrder(w http.ResponseWriter, r *http.Request) {
 
 	// 3. Corte y apertura de gaveta
 	req.CutPaper = cfg.AutoCut
-	if cfg.OpenDrawer && (req.CashAmount > 0 || req.SaleType == "COUNTER_SALE" || req.OpenDrawer) {
-		req.OpenDrawer = true
-	}
+	isCashSale := req.CashAmount > 0 || strings.EqualFold(req.PaymentType, "CASH")
+	req.OpenDrawer = cfg.OpenDrawer && (req.OpenDrawer || (isCashSale && req.SaleType == "COUNTER_SALE"))
 
 	// 4. Copias físicas controladas por la aplicación local
 	copies := cfg.DefaultCopies
@@ -345,7 +344,7 @@ func (s *Server) HandlePrintRaster(w http.ResponseWriter, r *http.Request) {
 	if req.Beep {
 		b.Beep()
 	}
-	if req.OpenDrawer || cfg.OpenDrawer {
+	if req.OpenDrawer && cfg.OpenDrawer {
 		b.OpenDrawer()
 	}
 
@@ -413,26 +412,30 @@ func (s *Server) HandleOpenDrawer(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewDecoder(r.Body).Decode(&req)
 
 	cfg := config.GetConfig()
-	printer := req.PrinterName
-	if printer == "" {
+	printer := strings.TrimSpace(req.PrinterName)
+	if cfg.DefaultPrinter != "" && cfg.DefaultPrinter != "Predefinida" {
+		if printer == "" || printer == "Predefinida" {
+			printer = cfg.DefaultPrinter
+		}
+	} else if printer == "" || printer == "Predefinida" {
 		printer = cfg.DefaultPrinter
 	}
 
-	b := escpos.NewBuilder(cfg.PaperWidth)
-	b.OpenDrawer()
-
-	err := hardware.PrintRawToPrinter(printer, b.Bytes())
+	payload := escpos.BuildDrawerKickBytes()
+	err := hardware.PrintRawToPrinter(printer, payload)
 	if err != nil {
+		log.Printf("[OpenDrawer ERROR] Error enviando pulso a '%s': %v", printer, err)
 		s.writeJSON(w, http.StatusInternalServerError, ApiResponse{
 			Success: false,
-			Error:   fmt.Sprintf("Error abriendo cajón monedero: %v", err),
+			Error:   fmt.Sprintf("Error abriendo cajón monedero en '%s': %v", printer, err),
 		})
 		return
 	}
 
+	log.Printf("[OpenDrawer OK] Pulso universal de apertura de cajón enviado a '%s'", printer)
 	s.writeJSON(w, http.StatusOK, ApiResponse{
 		Success: true,
-		Message: "Pulso de apertura de cajón enviado",
+		Message: fmt.Sprintf("Pulso de apertura de cajón enviado a '%s'", printer),
 	})
 }
 

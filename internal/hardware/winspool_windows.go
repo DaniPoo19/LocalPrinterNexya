@@ -26,6 +26,17 @@ type DOC_INFO_1 struct {
 	pDatatype   *uint16
 }
 
+func isVirtualPrinter(name string) bool {
+	lower := strings.ToLower(name)
+	return strings.Contains(lower, "pdf") ||
+		strings.Contains(lower, "onenote") ||
+		strings.Contains(lower, "xps") ||
+		strings.Contains(lower, "fax") ||
+		strings.Contains(lower, "send to") ||
+		lower == "predefinida" ||
+		lower == ""
+}
+
 // PrintRawToPrinter envía la secuencia binaria directa al Spooler de Windows
 func PrintRawToPrinter(printerName string, data []byte) error {
 	if len(data) == 0 {
@@ -38,16 +49,34 @@ func PrintRawToPrinter(printerName string, data []byte) error {
 		targetPrinter = GetDefaultPrinterName()
 	}
 
-	// Si aún no se obtiene un nombre válido, intentar con la primera impresora instalada
-	if targetPrinter == "" || targetPrinter == "Predefinida" {
+	// Si la impresora resultante es virtual (PDF/OneNote/Fax) o inválida, buscar una impresora térmica POS física
+	if isVirtualPrinter(targetPrinter) {
 		printers, _ := ListInstalledPrinters()
-		if len(printers) > 0 {
-			targetPrinter = printers[0].Name
+		var posPrinter string
+		for _, p := range printers {
+			if isVirtualPrinter(p.Name) {
+				continue
+			}
+			lower := strings.ToLower(p.Name)
+			if strings.Contains(lower, "pos") || strings.Contains(lower, "thermal") ||
+				strings.Contains(lower, "receipt") || strings.Contains(lower, "ticket") ||
+				strings.Contains(lower, "58") || strings.Contains(lower, "80") ||
+				strings.Contains(lower, "xp-") || strings.Contains(lower, "tm-") ||
+				strings.Contains(lower, "star") || strings.Contains(lower, "bixolon") {
+				posPrinter = p.Name
+				break
+			}
+			if posPrinter == "" {
+				posPrinter = p.Name
+			}
+		}
+		if posPrinter != "" {
+			targetPrinter = posPrinter
 		}
 	}
 
 	if targetPrinter == "" || targetPrinter == "Predefinida" {
-		return fmt.Errorf("no se encontró ninguna impresora instalada o configurada en Windows")
+		return fmt.Errorf("no se encontró ninguna impresora física POS instalada en Windows")
 	}
 
 	pNamePtr, err := syscall.UTF16PtrFromString(targetPrinter)
