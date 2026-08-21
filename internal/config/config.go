@@ -11,6 +11,7 @@ type Config struct {
 	Port           string `json:"port"`
 	DefaultPrinter string `json:"default_printer"`
 	PaperWidth     string `json:"paper_width"` // "58mm" or "80mm"
+	PrintMode      string `json:"print_mode"`  // "text" (Nativo ESC/POS) or "raster" (Gráfico TrueType Arial)
 	DefaultCopies  int    `json:"default_copies"` // 1, 2, 3...
 	AutoCut        bool   `json:"auto_cut"`
 	OpenDrawer     bool   `json:"open_drawer"`
@@ -28,6 +29,7 @@ func DefaultConfig() *Config {
 		Port:           "18181",
 		DefaultPrinter: "Predefinida",
 		PaperWidth:     "80mm",
+		PrintMode:      "text",
 		DefaultCopies:  1,
 		AutoCut:        true,
 		OpenDrawer:     true,

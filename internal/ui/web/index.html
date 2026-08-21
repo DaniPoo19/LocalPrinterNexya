@@ -23,7 +23,7 @@
         </div>
         <div class="brand-info">
           <h1>Nexya Printer</h1>
-          <span class="version-tag">v1.0.0</span>
+          <span class="version-tag" id="appVersionTag">v1.1.0</span>
         </div>
       </div>
 
@@ -150,6 +150,14 @@
                   <option value="Predefinida">Impresora Predefinida de Windows</option>
                 </select>
               </div>
+              <div class="form-group" style="grid-column: 1 / -1;">
+                <label>Modo de Impresión:</label>
+                <select id="selectPrintMode" class="form-control">
+                  <option value="text">Modo Texto ESC/POS Nativo (Recomendado: 100% universal, rápido, sin letras raras)</option>
+                  <option value="raster">Modo Gráfico Raster TrueType (Tipografía Arial segmentada)</option>
+                  <option value="html">Modo Chromium Headless (Imprime a través del Driver de Windows)</option>
+                </select>
+              </div>
               <div class="form-group">
                 <label>Ancho del Papel Térmico:</label>
                 <select id="selectPaperWidth" class="form-control">
@@ -263,8 +271,9 @@
             </div>
           </div>
 
-          <div class="form-actions">
+          <div class="form-actions" style="display: flex; gap: 10px; justify-content: space-between; align-items: center;">
             <button class="btn btn-primary" id="btnSaveSystemSettings">Guardar Ajustes</button>
+            <button class="btn btn-secondary" id="btnShutdownAgent" style="background: #ef4444; color: #fff; border-color: #ef4444;">Detener / Cerrar Agente</button>
           </div>
         </div>
       </section>

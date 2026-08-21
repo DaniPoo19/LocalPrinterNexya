@@ -35,13 +35,20 @@ func SetAutostart(enable bool) error {
 		if err != nil {
 			return fmt.Errorf("no se pudo determinar la ruta del ejecutable: %v", err)
 		}
-		absPath, _ := filepath.Abs(exePath)
+		absPath, err := filepath.Abs(exePath)
+		if err != nil {
+			absPath = exePath
+		}
 		cmd := exec.Command("reg", "add", runRegistryKey, "/v", appName, "/t", "REG_SZ", "/d", absPath, "/f")
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			HideWindow:    true,
 			CreationFlags: 0x08000000, // CREATE_NO_WINDOW
 		}
-		return cmd.Run()
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("error al registrar en Windows: %v (%s)", err, strings.TrimSpace(string(out)))
+		}
+		return nil
 	} else {
 		cmd := exec.Command("reg", "delete", runRegistryKey, "/v", appName, "/f")
 		cmd.SysProcAttr = &syscall.SysProcAttr{

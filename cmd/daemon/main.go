@@ -39,7 +39,9 @@ func main() {
 	addr := "127.0.0.1:" + port
 	url := "http://" + addr
 
-	// 1. Si el puerto ya está en uso, abrir directamente la ventana de la UI existente
+	// 1. Finalizar cualquier instancia previa de nexya-printer para garantizar que siempre corra la versión más reciente
+	ui.KillPreviousInstances(port)
+
 	if isPortInUse(addr) {
 		ui.OpenAppWindow(url)
 		time.Sleep(1 * time.Second)

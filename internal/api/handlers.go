@@ -22,8 +22,10 @@ import (
 	"local-printer-nexya/internal/config"
 	"local-printer-nexya/internal/escpos"
 	"local-printer-nexya/internal/hardware"
+	"local-printer-nexya/internal/htmlprint"
 	"local-printer-nexya/internal/raster"
 	"local-printer-nexya/internal/ui"
+	"local-printer-nexya/internal/version"
 )
 
 var (
@@ -31,6 +33,25 @@ var (
 	recentPrintJobs = make(map[string]time.Time)
 	recentJobsMutex sync.Mutex
 )
+
+// resolvePaperWidth determina el ancho real del papel (58mm u 80mm)
+// analizando la configuración o auto-detectando el nombre del modelo de la impresora
+func resolvePaperWidth(printerName, requestedWidth, configWidth string) string {
+	lowerName := strings.ToLower(printerName)
+	if strings.Contains(lowerName, "58") || strings.Contains(lowerName, "pos58") || strings.Contains(lowerName, "pos-58") {
+		return "58mm"
+	}
+	if strings.EqualFold(strings.TrimSpace(configWidth), "58mm") || strings.EqualFold(strings.TrimSpace(requestedWidth), "58mm") {
+		return "58mm"
+	}
+	if strings.EqualFold(strings.TrimSpace(configWidth), "80mm") {
+		return "80mm"
+	}
+	if strings.EqualFold(strings.TrimSpace(requestedWidth), "80mm") {
+		return "80mm"
+	}
+	return "80mm"
+}
 
 func isDuplicateJob(orderCode string) bool {
 	if orderCode == "" || orderCode == "TEST-001" {
@@ -76,7 +97,7 @@ func (s *Server) HandleHealth(w http.ResponseWriter, r *http.Request) {
 
 	resp := HealthResponse{
 		Status:            "online",
-		Version:           "1.0.0",
+		Version:           version.CurrentVersion,
 		DefaultPrinter:    def,
 		InstalledPrinters: printers,
 		Config:            config.GetConfig(),
@@ -131,12 +152,8 @@ func (s *Server) HandlePrintOrder(w http.ResponseWriter, r *http.Request) {
 		req.PrinterName = cfg.DefaultPrinter
 	}
 
-	// 2. El ancho de papel físico siempre lo impone la configuración local de la máquina
-	if cfg.PaperWidth != "" {
-		req.PaperWidth = cfg.PaperWidth
-	} else if req.PaperWidth == "" {
-		req.PaperWidth = "80mm"
-	}
+	// 2. El ancho de papel físico se resuelve inteligentemente (auto-detecta modelos 58mm o respeta configuración)
+	req.PaperWidth = resolvePaperWidth(req.PrinterName, req.PaperWidth, cfg.PaperWidth)
 
 	// 3. Corte y apertura de gaveta
 	req.CutPaper = cfg.AutoCut
@@ -152,43 +169,70 @@ func (s *Server) HandlePrintOrder(w http.ResponseWriter, r *http.Request) {
 		copies = 10
 	}
 
-	// 5. Renderizar el ticket con tipografía TrueType Arial real (203 DPI) a mapa de bits ESC/POS
-	ticketImg := raster.RenderOrderTicketToImage(&req)
-
-	maxWidth := 576
-	if strings.EqualFold(strings.TrimSpace(req.PaperWidth), "58mm") {
-		maxWidth = 384
-	}
-
-	b := escpos.NewBuilder(req.PaperWidth)
-	if req.Beep {
-		b.Beep()
-	}
-	if req.OpenDrawer {
-		b.OpenDrawer()
-	}
-
-	rasterBytes := escpos.ImageToEscposRaster(ticketImg, maxWidth)
-	b.PrintRasterImage(rasterBytes)
-
-	if req.CutPaper {
-		b.Cut(true) // Avance de 7 líneas completo + corte
-	} else {
-		b.FeedLines(7)
-	}
-
-	payload := b.Bytes()
-
+	printMode := strings.ToLower(strings.TrimSpace(cfg.PrintMode))
 	var lastErr error
-	for i := 0; i < copies; i++ {
-		err := hardware.PrintRawToPrinter(req.PrinterName, payload)
-		if err != nil {
-			lastErr = err
-			log.Printf("[PrintOrder ERROR] Error enviando copia %d/%d a '%s': %v", i+1, copies, req.PrinterName, err)
-			break
+	var payload []byte
+
+	if (printMode == "html" || printMode == "chromium") && strings.TrimSpace(req.HTML) != "" {
+		// MODO C: Impresión Silenciosa nativa Chromium Headless (Usa el driver de Windows directamente)
+		lastErr = htmlprint.PrintHtmlSilently(req.PrinterName, req.HTML, copies)
+		payload = []byte(req.HTML)
+		log.Printf("[PrintOrder] Impresión procesada vía Chromium Headless Driver en '%s'", req.PrinterName)
+	} else if printMode == "raster" {
+		// MODO B: Gráfico Raster TrueType Arial (Segmentado en bandas seguras contra buffer overflow)
+		ticketImg := raster.RenderOrderTicketToImage(&req)
+
+		maxWidth := 576
+		if strings.EqualFold(strings.TrimSpace(req.PaperWidth), "58mm") {
+			maxWidth = 384
 		}
-		if copies > 1 && i < copies-1 {
-			time.Sleep(300 * time.Millisecond)
+
+		b := escpos.NewBuilder(req.PaperWidth)
+		if req.Beep {
+			b.Beep()
+		}
+		if req.OpenDrawer {
+			b.OpenDrawer()
+		}
+
+		rasterBytes := escpos.ImageToEscposRaster(ticketImg, maxWidth)
+		b.PrintRasterImage(rasterBytes)
+
+		if req.CutPaper {
+			b.Cut(true)
+		} else {
+			b.FeedLines(4)
+		}
+
+		payload = b.Bytes()
+		log.Printf("[PrintOrder] Renderizado en Modo Gráfico Raster TrueType (%d bytes, ancho: %s)", len(payload), req.PaperWidth)
+
+		for i := 0; i < copies; i++ {
+			err := hardware.PrintRawToPrinter(req.PrinterName, payload)
+			if err != nil {
+				lastErr = err
+				log.Printf("[PrintOrder ERROR] Error enviando copia %d/%d a '%s': %v", i+1, copies, req.PrinterName, err)
+				break
+			}
+			if copies > 1 && i < copies-1 {
+				time.Sleep(300 * time.Millisecond)
+			}
+		}
+	} else {
+		// MODO A: Texto ESC/POS Nativo Universal (Rápido, limpio, 100%% seguro)
+		payload = escpos.FormatOrderTicket(&req)
+		log.Printf("[PrintOrder] Renderizado en Modo Texto ESC/POS Nativo (%d bytes, ancho: %s)", len(payload), req.PaperWidth)
+
+		for i := 0; i < copies; i++ {
+			err := hardware.PrintRawToPrinter(req.PrinterName, payload)
+			if err != nil {
+				lastErr = err
+				log.Printf("[PrintOrder ERROR] Error enviando copia %d/%d a '%s': %v", i+1, copies, req.PrinterName, err)
+				break
+			}
+			if copies > 1 && i < copies-1 {
+				time.Sleep(300 * time.Millisecond)
+			}
 		}
 	}
 
@@ -211,7 +255,7 @@ func (s *Server) HandlePrintOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("[PrintOrder OK] Pedido #%s impreso exitosamente (%d copia/s) en '%s' con tipografía Arial TrueType", req.OrderCode, copies, req.PrinterName)
+	log.Printf("[PrintOrder OK] Pedido #%s impreso exitosamente (%d copia/s) en '%s' [Modo: %s, Ancho: %s]", req.OrderCode, copies, req.PrinterName, printMode, req.PaperWidth)
 	s.writeJSON(w, http.StatusOK, ApiResponse{
 		Success: true,
 		Message: fmt.Sprintf("Pedido #%s impreso exitosamente (%d copia/s)", req.OrderCode, copies),
@@ -464,10 +508,7 @@ func (s *Server) HandleTestPrint(w http.ResponseWriter, r *http.Request) {
 		copies = 5
 	}
 
-	paperWidth := cfg.PaperWidth
-	if paperWidth == "" {
-		paperWidth = "80mm"
-	}
+	paperWidth := resolvePaperWidth(printer, "", cfg.PaperWidth)
 
 	payload := escpos.FormatTestTicket(paperWidth)
 	var lastErr error

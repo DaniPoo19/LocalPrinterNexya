@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"local-printer-nexya/internal/utils"
 )
 
 type PrintJobRecord struct {
@@ -33,7 +35,7 @@ func AddJobRecord(record PrintJobRecord) {
 		record.ID = fmt.Sprintf("job_%d", time.Now().UnixNano())
 	}
 	if record.Time == "" {
-		record.Time = time.Now().Format("15:04:05")
+		record.Time = utils.FormatSpanishTimeOnly12h(utils.GetBogotaTime())
 	}
 	record.CreatedAt = time.Now()
 

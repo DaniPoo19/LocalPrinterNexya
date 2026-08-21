@@ -59,6 +59,18 @@ function initActionButtons() {
     showToast('Lista de impresoras actualizada', 'success');
   });
   document.getElementById('btnClearJobs')?.addEventListener('click', handleClearJobs);
+  document.getElementById('btnExitApp')?.addEventListener('click', handleExitApp);
+  document.getElementById('btnShutdownAgent')?.addEventListener('click', handleExitApp);
+}
+
+async function handleExitApp() {
+  if (confirm('¿Deseas cerrar y detener el servicio de impresión local?')) {
+    try {
+      await fetch(`${API_BASE}/api/shutdown`, { method: 'POST' });
+    } catch (e) {}
+    showToast('Agente detenido.', 'info');
+    setTimeout(() => window.close(), 500);
+  }
 }
 
 // Forms
@@ -163,6 +175,9 @@ function populatePrinterSelects(printers) {
   
   select.innerHTML = html;
 
+  if (currentConfig.print_mode && document.getElementById('selectPrintMode')) {
+    document.getElementById('selectPrintMode').value = currentConfig.print_mode;
+  }
   if (currentConfig.paper_width) {
     document.getElementById('selectPaperWidth').value = currentConfig.paper_width;
   }
@@ -301,6 +316,7 @@ async function handleSavePrinterConfig() {
     const payload = {
       ...currentConfig,
       default_printer: document.getElementById('selectDefaultPrinter').value,
+      print_mode: document.getElementById('selectPrintMode')?.value || 'text',
       paper_width: document.getElementById('selectPaperWidth').value,
       default_copies: parseInt(document.getElementById('selectDefaultCopies').value, 10) || 1,
       auto_cut: document.getElementById('chkAutoCut').checked,

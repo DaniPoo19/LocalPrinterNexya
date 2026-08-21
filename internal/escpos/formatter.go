@@ -3,7 +3,9 @@ package escpos
 import (
 	"fmt"
 	"strings"
-	"time"
+
+	"local-printer-nexya/internal/utils"
+	"local-printer-nexya/internal/version"
 )
 
 type TicketAddon struct {
@@ -127,10 +129,7 @@ func FormatOrderTicket(req *PrintOrderRequest) []byte {
 	b.SetBold(false).SetDoubleSize(false)
 
 	b.SetAlign("left")
-	dateStr := req.CreatedAt
-	if dateStr == "" {
-		dateStr = time.Now().Format("02/01/2006 15:04")
-	}
+	dateStr := utils.ParseAndFormatDate(req.CreatedAt)
 	b.PrintRow2Cols("Fecha:", dateStr)
 
 	saleTypeLabel := "En Local"
@@ -297,11 +296,13 @@ func FormatTestTicket(paperWidth string) []byte {
 	b.PrintDivider("=")
 	b.SetAlign("left")
 	b.PrintRow2Cols("Estado:", "OK - Conectado")
+	b.PrintRow2Cols("Versión:", "v"+version.CurrentVersion)
 	b.PrintRow2Cols("Ancho:", paperWidth)
-	b.PrintRow2Cols("Fecha:", time.Now().Format("02/01/2006 15:04:05"))
+	b.PrintRow2Cols("Fecha:", utils.FormatSpanishDateTime12h(utils.GetBogotaTime()))
 	b.PrintDivider("-")
 	b.SetAlign("center")
 	b.PrintLine("Hardware Spooler: Operativo")
+	b.PrintLine("Modo Texto: ESC/POS Nativo")
 	b.PrintLine("Corte de papel: Activo")
 	b.PrintDivider("=")
 	b.SetBold(true).PrintLine("No válido como factura de venta")

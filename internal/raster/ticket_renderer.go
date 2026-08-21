@@ -18,6 +18,7 @@ import (
 	"golang.org/x/image/math/fixed"
 
 	"local-printer-nexya/internal/escpos"
+	"local-printer-nexya/internal/utils"
 )
 
 var (
@@ -403,9 +404,8 @@ func RenderOrderTicketToImage(req *escpos.PrintOrderRequest) image.Image {
 	}
 	canvas.DrawText(fmt.Sprintf("Pedido #%s", displayCode), true, fsOrder, "center")
 
-	if req.CreatedAt != "" {
-		canvas.DrawRow2Cols("Fecha:", req.CreatedAt, false, fsBody)
-	}
+	dateStr := utils.ParseAndFormatDate(req.CreatedAt)
+	canvas.DrawRow2Cols("Fecha:", dateStr, false, fsBody)
 
 	saleTypeLabel := saleTypeLabels[req.SaleType]
 	if saleTypeLabel == "" {

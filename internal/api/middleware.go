@@ -3,37 +3,47 @@ package api
 import (
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
 
-// isOriginAllowed verifica que el origen provenga de dominios autorizados de Nexya o de localhost
+// isOriginAllowed verifica que el origen provenga de dominios autorizados de Nexya, La Coquera o localhost
 func isOriginAllowed(origin string) bool {
 	if origin == "" {
 		// Peticiones de la ventana local de escritorio o herramientas de sistema
 		return true
 	}
 
-	// Normalizar minúsculas
-	originLower := strings.ToLower(origin)
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+
+	host := strings.ToLower(u.Hostname())
 
 	// 1. Permitir localhost y 127.0.0.1 en cualquier puerto (entorno local / pruebas)
-	if strings.HasPrefix(originLower, "http://localhost") ||
-		strings.HasPrefix(originLower, "http://127.0.0.1") ||
-		strings.HasPrefix(originLower, "https://localhost") ||
-		strings.HasPrefix(originLower, "https://127.0.0.1") {
+	if host == "localhost" || host == "127.0.0.1" {
 		return true
 	}
 
-	// 2. Permitir dominios oficiales de Nexya (HTTPS)
-	if strings.HasPrefix(originLower, "https://gestion.nexya.software") ||
-		strings.HasPrefix(originLower, "https://nexya.software") ||
-		strings.HasSuffix(originLower, ".nexya.software") {
+	// Los dominios web en la nube deben usar HTTPS
+	if u.Scheme != "https" {
+		return false
+	}
+
+	// 2. Permitir dominios oficiales de Nexya y Heladería La Coquera (HTTPS)
+	if host == "gestion.heladerialacoquera.app" ||
+		host == "heladerialacoquera.app" ||
+		strings.HasSuffix(host, ".heladerialacoquera.app") ||
+		host == "gestion.nexya.software" ||
+		host == "nexya.software" ||
+		strings.HasSuffix(host, ".nexya.software") {
 		return true
 	}
 
 	// 3. Permitir dominios de staging / preview oficiales
-	if strings.HasSuffix(originLower, ".vercel.app") || strings.HasSuffix(originLower, ".netlify.app") {
+	if strings.HasSuffix(host, ".vercel.app") || strings.HasSuffix(host, ".netlify.app") {
 		return true
 	}
 

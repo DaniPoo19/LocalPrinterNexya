@@ -167,26 +167,38 @@ func ImageToEscposRaster(src image.Image, maxWidth int) []byte {
 	// Centrar imagen
 	buf.Write(CmdAlignCenter)
 
-	// GS v 0 0 xL xH yL yH
+	// Segmentar la imagen en bandas horizontales de máximo 48 líneas por comando
+	// Esto previene que el buffer de memoria RAM de 2KB/4KB de impresoras térmicas se desborde
+	const sliceH = 48
 	xL := byte(widthInBytes % 256)
 	xH := byte(widthInBytes / 256)
-	yL := byte(targetH % 256)
-	yH := byte(targetH / 256)
 
-	buf.Write([]byte{0x1D, 0x76, 0x30, 0x00, xL, xH, yL, yH})
+	for yStart := 0; yStart < targetH; yStart += sliceH {
+		yEnd := yStart + sliceH
+		if yEnd > targetH {
+			yEnd = targetH
+		}
+		curSliceHeight := yEnd - yStart
 
-	for y := 0; y < targetH; y++ {
-		for xByte := 0; xByte < widthInBytes; xByte++ {
-			var b byte = 0
-			for bit := 0; bit < 8; bit++ {
-				x := xByte*8 + bit
-				if x < targetW {
-					if grayMatrix[y][x] < 128.0 {
-						b |= (1 << (7 - bit)) // Punto negro térmico
+		yL := byte(curSliceHeight % 256)
+		yH := byte(curSliceHeight / 256)
+
+		// GS v 0 0 xL xH yL yH para cada franja
+		buf.Write([]byte{0x1D, 0x76, 0x30, 0x00, xL, xH, yL, yH})
+
+		for y := yStart; y < yEnd; y++ {
+			for xByte := 0; xByte < widthInBytes; xByte++ {
+				var b byte = 0
+				for bit := 0; bit < 8; bit++ {
+					x := xByte*8 + bit
+					if x < targetW {
+						if grayMatrix[y][x] < 128.0 {
+							b |= (1 << (7 - bit)) // Punto negro térmico
+						}
 					}
 				}
+				buf.WriteByte(b)
 			}
-			buf.WriteByte(b)
 		}
 	}
 

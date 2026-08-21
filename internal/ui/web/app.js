@@ -59,21 +59,18 @@ function initActionButtons() {
     showToast('Lista de impresoras actualizada', 'success');
   });
   document.getElementById('btnClearJobs')?.addEventListener('click', handleClearJobs);
-  document.getElementById('btnExitApp')?.addEventListener('click', async () => {
-    if (confirm('¿Deseas cerrar la aplicación y detener el servicio de impresión local?')) {
-      try {
-        await fetch(`${API_BASE}/api/shutdown`, { method: 'POST' });
-      } catch (e) {}
-      window.close();
-    }
-  });
+  document.getElementById('btnExitApp')?.addEventListener('click', handleExitApp);
+  document.getElementById('btnShutdownAgent')?.addEventListener('click', handleExitApp);
+}
 
-  // Si la ventana se cierra, enviar beacon de apagado al daemon
-  window.addEventListener('beforeunload', () => {
+async function handleExitApp() {
+  if (confirm('¿Deseas cerrar y detener el servicio de impresión local?')) {
     try {
-      navigator.sendBeacon(`${API_BASE}/api/shutdown`);
+      await fetch(`${API_BASE}/api/shutdown`, { method: 'POST' });
     } catch (e) {}
-  });
+    showToast('Agente detenido.', 'info');
+    setTimeout(() => window.close(), 500);
+  }
 }
 
 // Forms
@@ -92,13 +89,17 @@ async function fetchHealth() {
       currentConfig = data.config || {};
       
       // Update UI
+      if (data.version && document.getElementById('appVersionTag')) {
+        document.getElementById('appVersionTag').textContent = `v${data.version}`;
+      }
       document.getElementById('globalStatusPill').className = 'status-indicator online';
       document.getElementById('globalStatusText').textContent = 'Servicio Activo';
       document.getElementById('statDefaultPrinter').textContent = data.default_printer || 'Predefinida';
       
       const copies = currentConfig.default_copies || 1;
       const width = currentConfig.paper_width || '80mm';
-      document.getElementById('statPaperWidth').textContent = `${copies} ${copies === 1 ? 'copia' : 'copias'} • ${width}`;
+      const mode = currentConfig.print_mode === 'raster' ? 'Gráfico' : 'Texto';
+      document.getElementById('statPaperWidth').textContent = `${copies} ${copies === 1 ? 'copia' : 'copias'} • ${width} • ${mode}`;
       document.getElementById('portBadge').textContent = `:${currentConfig.port || '18181'}`;
       
       // Format uptime
@@ -178,6 +179,9 @@ function populatePrinterSelects(printers) {
   
   select.innerHTML = html;
 
+  if (currentConfig.print_mode && document.getElementById('selectPrintMode')) {
+    document.getElementById('selectPrintMode').value = currentConfig.print_mode;
+  }
   if (currentConfig.paper_width) {
     document.getElementById('selectPaperWidth').value = currentConfig.paper_width;
   }
@@ -316,6 +320,7 @@ async function handleSavePrinterConfig() {
     const payload = {
       ...currentConfig,
       default_printer: document.getElementById('selectDefaultPrinter').value,
+      print_mode: document.getElementById('selectPrintMode')?.value || 'text',
       paper_width: document.getElementById('selectPaperWidth').value,
       default_copies: parseInt(document.getElementById('selectDefaultCopies').value, 10) || 1,
       auto_cut: document.getElementById('chkAutoCut').checked,
